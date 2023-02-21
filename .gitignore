@@ -1,3 +1,6 @@
+# Intellij IDEA config files
+.idea/
+
 # Prerequisites
 *.d
 
