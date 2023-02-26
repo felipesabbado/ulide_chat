@@ -1,5 +1,7 @@
 # Intellij IDEA config files
 .idea/
+cmake-build-debug/
+CMakeLists.txt
 
 # Prerequisites
 *.d
