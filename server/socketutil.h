@@ -9,9 +9,20 @@
 #include <malloc.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <pthread.h>
 
 struct sockaddr_in* createIpv4Address(char *ip, int port);
 
 int createTCPIpv4Socket();
+
+struct AcceptedSocket * acceptIncomingConnection(int serverSocketFD);
+
+void receiveAndPrintIncomingData(int socketFD);
+
+void startAcceptingIncomingConnections(int serverSocketFD);
+
+void receiveAndPrintIncomingDataOnSeparateThread(struct AcceptedSocket *pSocket);
+
+void sendReceivedMessageToTheOtherClients(char *buffer,int socketFD);
 
 #endif //CLIENT_SOCKETUTIL_H
