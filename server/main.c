@@ -1,3 +1,4 @@
+#include <unistd.h>
 #include "util.h"
 
 int main() {
@@ -16,9 +17,21 @@ int main() {
     int clientSocketFD = accept(serverSocketFD, &clientAddress, &clientAddressSize);
 
     char buffer[1024];
-    recv(clientSocketFD, buffer, 1024, 0);
 
-    printf("Response was: %s\n", buffer);
+    while(1) {
+        ssize_t amountReceived = recv(clientSocketFD, buffer, 1024, 0);
+
+        if(amountReceived > 0) {
+            buffer[amountReceived] = 0;
+            printf("Response was: %s\n", buffer);
+        }
+
+        if(amountReceived == 0)
+            break;
+    }
+
+    close(clientSocketFD);
+    shutdown(serverSocketFD, SHUT_RDWR);
 
     return 0;
 }

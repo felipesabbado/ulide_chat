@@ -1,3 +1,4 @@
+#include <unistd.h>
 #include "util.h"
 
 int main() {
@@ -23,6 +24,8 @@ int main() {
             ssize_t amountWasSent = send(socketFD, line, charCount, 0);
         }
     }
+
+    close(socketFD);
 
     return 0;
 }
