@@ -2,21 +2,27 @@
 
 int main() {
     int socketFD = createTCPIPv4Socket();
-    struct sockaddr_in* address = createIPv4Address("142.250.200.78", 80);
+    struct sockaddr_in* address = createIPv4Address("127.0.0.1", 2000);
 
     int result = connect(socketFD, address, sizeof(*address));
 
     if(result == 0)
         printf("connect was successfull\n");
 
-    char* message;
-    message = "GET \\ HTTP/1.1\r\nHost:google.com\r\n\r\n";
-    send(socketFD, message, strlen(message), 0);
+    char* line = NULL;
+    size_t lineSize = 0;
+    printf("Type your message(\\q to exit): \n");
 
-    char buffer[1024];
-    recv(socketFD, buffer, 1024, 0);
+    while(1) {
+        ssize_t charCount = getline(&line, &lineSize, stdin);
 
-    printf("Response was: %s\n", buffer);
+        if(charCount > 0) {
+            if(strcmp(line, "\\q\n") == 0)
+                break;
+
+            ssize_t amountWasSent = send(socketFD, line, charCount, 0);
+        }
+    }
 
     return 0;
 }
