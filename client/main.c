@@ -8,7 +8,7 @@ void* listenAndPrint(void* socketFD);
 
 int main() {
     int socketFD = createTCPIPv4Socket();
-    struct sockaddr_in* address = createIPv4Address("127.0.0.1", 2000);
+    struct sockaddr_in* address = createIPv4Address("161.230.139.213", 2000);
 
     int result = connect(socketFD, address, sizeof(*address));
 
