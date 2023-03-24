@@ -10,6 +10,8 @@ struct AcceptedSocket {
 
 struct AcceptedSocket* acceptIncomingConnection(int serverSocketFD);
 
+void receiveAndPrintIncomingData(int socketFD);
+
 int main() {
 
     int serverSocketFD = createTCPIPv4Socket();
@@ -21,12 +23,21 @@ int main() {
 
     int listenResult = listen(serverSocketFD, 10); // if listen == 0 it was successufuly
 
-    struct AcceptedSocket* clientSocketFD = acceptIncomingConnection(serverSocketFD);
+    struct AcceptedSocket* clientSocket = acceptIncomingConnection(serverSocketFD);
 
+    receiveAndPrintIncomingData(clientSocket->acceptedSocketFD);
+
+    close(clientSocket->acceptedSocketFD);
+    shutdown(serverSocketFD, SHUT_RDWR);
+
+    return 0;
+}
+
+void receiveAndPrintIncomingData(int socketFD) {
     char buffer[1024];
 
     while(1) {
-        ssize_t amountReceived = recv(clientSocketFD->acceptedSocketFD, buffer, 1024, 0);
+        ssize_t amountReceived = recv(socketFD, buffer, 1024, 0);
 
         if(amountReceived > 0) {
             buffer[amountReceived] = 0;
@@ -36,11 +47,6 @@ int main() {
         if(amountReceived == 0)
             break;
     }
-
-    close(clientSocketFD->acceptedSocketFD);
-    shutdown(serverSocketFD, SHUT_RDWR);
-
-    return 0;
 }
 
 struct AcceptedSocket* acceptIncomingConnection(int serverSocketFD) {
