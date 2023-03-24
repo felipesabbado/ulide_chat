@@ -14,6 +14,8 @@ int main() {
 
     if(result == 0)
         printf("connect was successfull\n");
+    else
+        printf("error %d", result);
 
     char* name = NULL;
     size_t nameSize = 0;
