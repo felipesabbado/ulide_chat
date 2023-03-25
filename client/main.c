@@ -1,8 +1,9 @@
 #include "util.h"
 
-int main() {
+int main(int argc, char *argv[]) {
     int socketFD = createTCPIPv4Socket();
-    struct sockaddr_in* address = createIPv4Address("127.0.0.1", 2000);
+    struct sockaddr_in* address = createIPv4Address(argv[1], 2000);
+    printf("ip: %s\n", argv[1]);
 
     int result = connect(socketFD, address, sizeof(*address));
 
