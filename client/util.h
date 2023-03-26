@@ -1,7 +1,10 @@
 #ifndef UTIL_UTIL_H
 #define UTIL_UTIL_H
 
+#define PORT 2000
+
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -10,16 +13,20 @@
 #include <unistd.h>
 #include <pthread.h>
 
+int createSocketConnection(char* ip);
+
 int createTCPIPv4Socket();
 
-struct sockaddr_in* createIPv4Address(char *ip, int port);
+struct sockaddr_in* createIPv4Address(char *ip);
 
-void clientInterface(int result, char **name, char **line, size_t *lineSize);
+void mainRoomBanner();
+
+char* clientName();
 
 void startListeningAndPrintMessagesOnNewThread(int socketFD);
 
 void* listenAndPrint(void* socketFD);
 
-void receiveAndPrintIncomingMessage(int socketFD, const char *name, char **line, size_t *lineSize);
+void receiveAndPrintIncomingMessage(int socketFD, const char *name);
 
 #endif //UTIL_UTIL_H

@@ -1,13 +1,30 @@
 #include "util.h"
 
+int createSocketConnection(char* ip) {
+    int socketFD = createTCPIPv4Socket();
+    //struct sockaddr_in* address = createIPv4Address(ip);
+    struct sockaddr_in* address = createIPv4Address("127.0.0.1");
+    int result = connect(socketFD, address, sizeof(*address));
+
+    if(result == 0){
+        mainRoomBanner();
+    }
+    else {
+        printf("Error %d\n", result);
+        exit(1);
+    }
+
+    return socketFD;
+}
+
 int createTCPIPv4Socket() {
     return socket(AF_INET, SOCK_STREAM, 0);
 }
 
-struct sockaddr_in* createIPv4Address(char *ip, int port) {
+struct sockaddr_in* createIPv4Address(char *ip) {
     struct sockaddr_in * address = malloc(sizeof(struct sockaddr_in));
     address->sin_family = AF_INET;
-    address->sin_port = htons(port);
+    address->sin_port = htons(PORT);
 
     if(strlen(ip) == 0)
         address->sin_addr.s_addr = INADDR_ANY;
@@ -17,22 +34,24 @@ struct sockaddr_in* createIPv4Address(char *ip, int port) {
     return address;
 }
 
-void clientInterface(int result, char **name, char **line, size_t *lineSize) {
-    (*name) = NULL;
-    (*line) = NULL;
-    (*lineSize) = 0;
+void mainRoomBanner() {
+    printf("***************************************************************\n");
+    printf("|  _   _  _     ___  ___   ___         ___  _  _  ___  _____  |\n"
+           "| | | | || |   |_ _||   \\ | __|       / __|| || |/   \\|_   _| |\n"
+           "| | |_| || |__  | | | |) || _|       | (__ | __ || - |  | |   |\n"
+           "|  \\___/ |____||___||___/ |___|       \\___||_||_||_|_|  |_|   |\n");
+    printf("***************************************************************\n");
+}
 
-    if(result == 0)
-        printf("connect was successfully\n");
-    else
-        printf("error %d", result);
+char* clientName() {
+    char* name;
 
     size_t nameSize = 0;
     printf("Please, enter your nickname \n");
-    ssize_t nameCount = getline(name, &nameSize, stdin);
-    (*name)[nameCount - 1] = 0;
+    ssize_t nameCount = getline(&name, &nameSize, stdin);
+    name[nameCount - 1] = 0;
 
-    printf("Type your message(\\q to exit): \n");
+    return name;
 }
 
 void startListeningAndPrintMessagesOnNewThread(int socketFD) {
@@ -58,17 +77,20 @@ void* listenAndPrint(void* socketFD) {
     close((int) socketFD);
 }
 
-void receiveAndPrintIncomingMessage(int socketFD, const char *name, char **line, size_t *lineSize) {
+void receiveAndPrintIncomingMessage(int socketFD, const char *name) {
     char buffer[1024];
+    char *line = NULL;
+    size_t lineSize = 0;
 
+    printf("Type your message(\\q to exit): \n");
     while(1) {
-        ssize_t charCount = getline(line, lineSize, stdin);
-        (*line)[charCount - 1] = 0;
+        ssize_t charCount = getline(&line, &lineSize, stdin);
+        line[charCount - 1] = 0;
 
-        sprintf(buffer, "%s: %s", name, (*line));
+        sprintf(buffer, "%s: %s", name, line);
 
         if(charCount > 0) {
-            if(strcmp((*line), "\\q") == 0)
+            if(strcmp(line, "\\q") == 0)
                 break;
 
             ssize_t amountWasSent = send(socketFD, buffer, strlen(buffer), 0);
