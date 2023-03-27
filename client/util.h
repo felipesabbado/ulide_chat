@@ -2,6 +2,8 @@
 #define UTIL_UTIL_H
 
 #define PORT 2000
+#define MAX_NAME_LEN 20
+#define MAX_MSG_LEN 1024
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,8 +27,8 @@ char* clientName();
 
 void startListeningAndPrintMessagesOnNewThread(int socketFD);
 
-void* listenAndPrint(void* socketFD);
+void* listenAndPrintIncomingMessages(void* socketFD);
 
-void receiveAndPrintIncomingMessage(int socketFD, const char *name);
+void sendMessagesToSever(int socketFD);
 
 #endif //UTIL_UTIL_H

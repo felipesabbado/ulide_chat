@@ -1,6 +1,7 @@
 #ifndef UTIL_UTIL_H
 #define UTIL_UTIL_H
 
+#define PORT 2000
 #define MAX_CLIENTS 50
 #define MAX_ROOM_CLIENTS 10
 #define MAX_ROOMS 5
@@ -30,12 +31,14 @@ typedef struct room {
     char history[MAX_ROOM_CLIENTS * MAX_MSG_LEN];
 } room_t;
 
-typedef struct AcceptedSocket {
+struct AcceptedSocket {
     int acceptedSocketFD;
     struct sockaddr_in address;
     int error;
     int acceptedSuccessfully; // boolean
-} ACCEPTEDSOCKET;
+};
+
+typedef struct AcceptedSocket ACCEPTEDSOCKET;
 
 int createTCPIPv4Socket();
 

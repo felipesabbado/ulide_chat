@@ -48,7 +48,8 @@ char* clientName() {
 
     size_t nameSize = 0;
     printf("Please, enter your nickname \n");
-    ssize_t nameCount = getline(&name, &nameSize, stdin);
+    ssize_t nameCount = getline(&name,
+                                &nameSize, stdin);
     name[nameCount - 1] = 0;
 
     return name;
@@ -56,14 +57,16 @@ char* clientName() {
 
 void startListeningAndPrintMessagesOnNewThread(int socketFD) {
     pthread_t id;
-    pthread_create(&id, NULL, listenAndPrint, (void*) socketFD);
+    pthread_create(&id, NULL,
+                   listenAndPrintIncomingMessages, (void *) socketFD);
 }
 
-void* listenAndPrint(void* socketFD) {
-    char buffer[1024];
+void* listenAndPrintIncomingMessages(void* socketFD) {
+    char buffer[MAX_MSG_LEN];
 
     while(1) {
-        ssize_t amountReceived = recv((int) socketFD, buffer, 1024, 0);
+        ssize_t amountReceived = recv((int) socketFD,
+                                      buffer, 1024, 0);
 
         if(amountReceived > 0) {
             buffer[amountReceived] = 0;
@@ -77,25 +80,27 @@ void* listenAndPrint(void* socketFD) {
     close((int) socketFD);
 }
 
-void receiveAndPrintIncomingMessage(int socketFD, const char *name) {
-    char buffer[1024];
+void sendMessagesToSever(int socketFD) {
+    char buffer[MAX_MSG_LEN];
     char *line = NULL;
     size_t lineSize = 0;
 
-    printf("Type your message(\\q to exit): \n");
+    char *name = clientName();
+
+    printf("Type your message(\\quit to exit): \n");
     while(1) {
-        ssize_t charCount = getline(&line, &lineSize, stdin);
+        ssize_t charCount = getline(&line,
+                                    &lineSize, stdin);
         line[charCount - 1] = 0;
 
         sprintf(buffer, "%s: %s", name, line);
 
         if(charCount > 0) {
-            if(strcmp(line, "\\q") == 0)
+            if(strcmp(line, "\\quit") == 0)
                 break;
 
-            ssize_t amountWasSent = send(socketFD, buffer, strlen(buffer), 0);
+            send(socketFD, buffer,
+                 strlen(buffer), 0);
         }
     }
-
-    close(socketFD);
 }
