@@ -1,9 +1,8 @@
 #include "util.h"
 
 int createSocketConnection(char* ip) {
-    int socketFD = createTCPIPv4Socket();
-    //struct sockaddr_in* address = createIPv4Address(ip);
-    struct sockaddr_in* address = createIPv4Address("127.0.0.1");
+    int socketFD = socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in* address = createIPv4Address(ip);
     int result = connect(socketFD, address, sizeof(*address));
 
     if(result == 0){
@@ -15,10 +14,6 @@ int createSocketConnection(char* ip) {
     }
 
     return socketFD;
-}
-
-int createTCPIPv4Socket() {
-    return socket(AF_INET, SOCK_STREAM, 0);
 }
 
 struct sockaddr_in* createIPv4Address(char *ip) {
@@ -43,14 +38,19 @@ void mainRoomBanner() {
     printf("***************************************************************\n");
 }
 
-char* clientName() {
-    char* name;
-
+char* clientName(int socketFD) {
+    char buffer[MAX_MSG_LEN];
+    char* name = NULL;
     size_t nameSize = 0;
-    printf("Please, enter your nickname \n");
-    ssize_t nameCount = getline(&name,
-                                &nameSize, stdin);
+
+    printf("Please, enter your nickname: ");
+    ssize_t nameCount = getline(&name, &nameSize, stdin);
     name[nameCount - 1] = 0;
+
+    sprintf(buffer, "\\nickname %s", name);
+    printf("%s\n", buffer);
+
+    send(socketFD, buffer, strlen(buffer), 0);
 
     return name;
 }
@@ -80,17 +80,16 @@ void* listenAndPrintIncomingMessages(void* socketFD) {
     close((int) socketFD);
 }
 
-void sendMessagesToSever(int socketFD) {
+void sendMessagesToARoom(int socketFD) {
     char buffer[MAX_MSG_LEN];
     char *line = NULL;
     size_t lineSize = 0;
 
-    char *name = clientName();
+    char *name = clientName(socketFD);
 
     printf("Type your message(\\quit to exit): \n");
     while(1) {
-        ssize_t charCount = getline(&line,
-                                    &lineSize, stdin);
+        ssize_t charCount = getline(&line, &lineSize, stdin);
         line[charCount - 1] = 0;
 
         sprintf(buffer, "%s: %s", name, line);
@@ -99,8 +98,20 @@ void sendMessagesToSever(int socketFD) {
             if(strcmp(line, "\\quit") == 0)
                 break;
 
-            send(socketFD, buffer,
-                 strlen(buffer), 0);
+            send(socketFD, buffer, strlen(buffer), 0);
         }
     }
+}
+
+void sendMessagesToServer(int socketFD) {
+    char msg[MAX_MSG_LEN];
+    char *line = NULL;
+    size_t lineSize = 0;
+
+    ssize_t charCount = getline(&line, &lineSize, stdin);
+    line[charCount - 1] = 0;
+
+    sprintf(msg, "%s", line);
+
+    send(socketFD, msg, strlen(msg), 0);
 }

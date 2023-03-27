@@ -17,18 +17,18 @@
 
 int createSocketConnection(char* ip);
 
-int createTCPIPv4Socket();
-
 struct sockaddr_in* createIPv4Address(char *ip);
 
 void mainRoomBanner();
 
-char* clientName();
+char* clientName(int socketFD);
 
 void startListeningAndPrintMessagesOnNewThread(int socketFD);
 
 void* listenAndPrintIncomingMessages(void* socketFD);
 
-void sendMessagesToSever(int socketFD);
+void sendMessagesToARoom(int socketFD);
+
+void sendMessagesToServer(int socketFD);
 
 #endif //UTIL_UTIL_H
