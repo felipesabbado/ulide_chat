@@ -1,7 +1,8 @@
 #include "util.h"
 
 ACCEPTEDSOCKET* acceptIncomingConnection(int serverSocketFD);
-ACCEPTEDSOCKET acceptedSockets[10]; // 10 is the max number of clients
+// 10 is the max number of clients
+ACCEPTEDSOCKET acceptedSockets[10];
 int acceptedSocketsCount = 0;
 
 int createTCPIPv4Socket() {
