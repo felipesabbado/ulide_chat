@@ -1,16 +1,12 @@
 #include "util.h"
 
+void commandList();
+
 int main(int argc, char *argv[]) {
     int socketFD = createSocketConnection("127.0.0.1");
     //int socketFD = createSocketConnection(argv[1]);
 
-    printf("At any time, type the commands below to:\n"
-           "\\quit - Leave the current room or log out\n"
-           "\\showrooms - Show available rooms\n"
-           "\\createroom - Create a new room\n"
-           "\\enterroom - Enter in a room\n"
-           "\\changenick - Change your nickname\n"
-           "\\commands - Show this list of commands\n");
+    commandList();
 
     while (1) {
         char msg[MAX_MSG_LEN];
@@ -27,9 +23,6 @@ int main(int argc, char *argv[]) {
         if (strcmp(msg, "\\quit") == 0)
             break;
 
-        if (strcmp(msg, "\\showrooms") == 0)
-            break;
-
         if (strcmp(msg, "\\enterroom") == 0) {
             startListeningAndPrintMessagesOnNewThread(socketFD);
             sendMessagesToARoom(socketFD);
@@ -39,4 +32,14 @@ int main(int argc, char *argv[]) {
     close(socketFD);
 
     return 0;
+}
+
+void commandList() {
+    printf("At any time, type the commands below to:\n"
+           "\\quit - Leave the current room or log out\n"
+           "\\showrooms - Show available rooms\n"
+           "\\createroom - Create a new room\n"
+           "\\enterroom - Enter in a room\n"
+           "\\changenick - Change your nickname\n"
+           "\\commands - Show this list of commands\n");
 }
