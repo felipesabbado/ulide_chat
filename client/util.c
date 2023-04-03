@@ -38,35 +38,18 @@ void mainRoomBanner() {
     printf("***************************************************************\n");
 }
 
-char* clientName(int socketFD) {
-    char buffer[MAX_MSG_LEN];
-    char* name = NULL;
-    size_t nameSize = 0;
-
-    printf("Please, enter your nickname: ");
-    ssize_t nameCount = getline(&name, &nameSize, stdin);
-    name[nameCount - 1] = 0;
-
-    sprintf(buffer, "\\nickname %s", name);
-    printf("%s\n", buffer);
-
-    send(socketFD, buffer, strlen(buffer), 0);
-
-    return name;
-}
-
 void startListeningAndPrintMessagesOnNewThread(int socketFD) {
     pthread_t id;
     pthread_create(&id, NULL,
                    listenAndPrintIncomingMessages, (void *) socketFD);
 }
 
-void* listenAndPrintIncomingMessages(void* socketFD) {
+void *listenAndPrintIncomingMessages(void* socketFD) {
     char buffer[MAX_MSG_LEN];
 
     while(1) {
         ssize_t amountReceived = recv((int) socketFD,
-                                      buffer, 1024, 0);
+                                      buffer, MAX_MSG_LEN, 0);
 
         if(amountReceived > 0) {
             buffer[amountReceived] = 0;
@@ -80,38 +63,36 @@ void* listenAndPrintIncomingMessages(void* socketFD) {
     close((int) socketFD);
 }
 
-void sendMessagesToARoom(int socketFD) {
+void sendMessagesToServer(int socketFD) {
     char buffer[MAX_MSG_LEN];
-    char *line = NULL;
-    size_t lineSize = 0;
+    char *name;
+    size_t nameSize = 0;
 
-    char *name = clientName(socketFD);
+    printf("Enter your nickname: ");
+    ssize_t nameCount = getline(&name, &nameSize, stdin);
+    name[nameCount - 1] = 0;
 
-    printf("Type your message(\\quit to exit): \n");
-    while(1) {
-        ssize_t charCount = getline(&line, &lineSize, stdin);
-        line[charCount - 1] = 0;
+    sprintf(buffer, "\\changenick %s", name);
 
-        sprintf(buffer, "%s: %s", name, line);
+    send(socketFD, buffer, strlen(buffer), 0);
 
-        if(charCount > 0) {
-            if(strcmp(line, "\\quit") == 0)
+    while (1) {
+        char *msg = NULL;
+        size_t lineSize = 0;
+
+        ssize_t charCount = getline(&msg, &lineSize, stdin);
+        msg[charCount - 1] = 0;
+
+        sprintf(buffer, "%s", msg);
+        //sprintf(buffer, "%s: %s", name, msg);
+
+        if (charCount > 0) {
+            if (strcmp(msg, "\\quit") == 0)
                 break;
 
             send(socketFD, buffer, strlen(buffer), 0);
         }
     }
-}
 
-void sendMessagesToServer(int socketFD) {
-    char msg[MAX_MSG_LEN];
-    char *line = NULL;
-    size_t lineSize = 0;
-
-    ssize_t charCount = getline(&line, &lineSize, stdin);
-    line[charCount - 1] = 0;
-
-    sprintf(msg, "%s", line);
-
-    send(socketFD, msg, strlen(msg), 0);
+    close(socketFD);
 }

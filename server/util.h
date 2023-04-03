@@ -26,35 +26,36 @@ typedef struct clientExample {
 
 typedef struct room {
     int id;
-    char name[MAX_NAME_LEN];
+    char room_name[MAX_NAME_LEN];
     int n_clients;
     client_t clients[MAX_ROOM_CLIENTS];
-    char history[MAX_ROOM_CLIENTS * MAX_MSG_LEN];
 } room_t;
 
-struct clientSocket {
+typedef struct clientSocket {
     int clientSocketFD;
     struct sockaddr_in address;
     char name[MAX_NAME_LEN];
     int error;
     int acceptedSuccessfully; // boolean
-};
-
-typedef struct clientSocket clientSocket_t;
+} clientSocket_t;
 
 int createSocketConnection();
 
 struct sockaddr_in* createIPv4Address(char *ip, int port);
 
-void* receiveAndPrintIncomingData(void *arg);
-
 void startAcceptingIncomingConnections(int serverSocketFD);
 
+clientSocket_t *acceptIncomingConnection(int serverSocketFD);
+
 void receiveAndPrintIncomingDataOnSeparateThread(clientSocket_t *clientSocket);
+
+void* receiveAndPrintIncomingData(void *arg);
 
 void sendResponseToTheClient(char* buffer, int socketFD);
 
 void sendReceivedMessageToTheOtherClients(char *buffer, int socketFD);
+
+void commandList(char *buffer, int socketFD);
 
 // Multiples Rooms
 void send_to_room(int room_id, char *msg, int sender_fd);

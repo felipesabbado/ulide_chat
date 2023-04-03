@@ -2,7 +2,6 @@
 #define UTIL_UTIL_H
 
 #define PORT 2000
-#define MAX_NAME_LEN 20
 #define MAX_MSG_LEN 1024
 
 #include <stdio.h>
@@ -21,13 +20,9 @@ struct sockaddr_in* createIPv4Address(char *ip);
 
 void mainRoomBanner();
 
-char* clientName(int socketFD);
-
 void startListeningAndPrintMessagesOnNewThread(int socketFD);
 
 void* listenAndPrintIncomingMessages(void* socketFD);
-
-void sendMessagesToARoom(int socketFD);
 
 void sendMessagesToServer(int socketFD);
 
