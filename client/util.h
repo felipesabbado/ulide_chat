@@ -14,15 +14,22 @@
 #include <unistd.h>
 #include <pthread.h>
 
-int createSocketConnection(char* ip);
+typedef struct clientSocket {
+    int clientSocketFD;
+    struct sockaddr_in address;
+    int acceptedSuccessfully; // boolean
+    int error;
+} clientSocket_t;
 
-struct sockaddr_in* createIPv4Address(char *ip);
+void createSocketConnection(char *ip, clientSocket_t *clientSocket);
+
+struct sockaddr_in *createIPv4Address(char *ip, int port);
 
 void mainRoomBanner();
 
-void startListeningAndPrintMessagesOnNewThread(int socketFD);
+void startListeningAndPrintMessagesOnNewThread(clientSocket_t *clientSocket);
 
-void* listenAndPrintIncomingMessages(void* socketFD);
+void* listenAndPrintIncomingMessages(void *arg);
 
 void sendMessagesToServer(int socketFD);
 

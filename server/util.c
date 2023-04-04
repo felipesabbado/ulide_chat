@@ -1,7 +1,7 @@
 #include "util.h"
 
-clientSocket_t *acceptIncomingConnection(int serverSocketFD);
 clientSocket_t acceptedSockets[MAX_CLIENTS];
+pthread_mutex_t acceptedSocketsMutex = PTHREAD_MUTEX_INITIALIZER;
 int acceptedSocketsCount = 0;
 
 room_t rooms[MAX_ROOMS];
@@ -22,7 +22,7 @@ int createSocketConnection() {
     return serverSocketFD;
 }
 
-struct sockaddr_in* createIPv4Address(char *ip, int port) {
+struct sockaddr_in *createIPv4Address(char *ip, int port) {
     struct sockaddr_in *address = malloc(sizeof(struct sockaddr_in));
     address->sin_family = AF_INET;
     address->sin_port = htons(port);
@@ -38,9 +38,29 @@ struct sockaddr_in* createIPv4Address(char *ip, int port) {
 void startAcceptingIncomingConnections(int serverSocketFD) {
     while(1) {
         clientSocket_t *clientSocket = acceptIncomingConnection(serverSocketFD);
-        acceptedSockets[acceptedSocketsCount++] = *clientSocket;
+        int socketFD = clientSocket->clientSocketFD;
 
-        receiveAndPrintIncomingDataOnSeparateThread(clientSocket);
+        // If the server is full, send a message to the client
+        pthread_mutex_lock(&acceptedSocketsMutex);
+        if (acceptedSocketsCount == MAX_CLIENTS) {
+            char buffer[] = "\\Server is full. Try again later";
+            printf("Server is full\n");
+            sendResponseToTheClient(buffer, socketFD);
+            close(socketFD);
+        }
+        acceptedSockets[acceptedSocketsCount++] = *clientSocket;
+        pthread_mutex_unlock(&acceptedSocketsMutex);
+
+        // If the client was not accepted, send error message to the client
+        if(!clientSocket->acceptedSuccessfully) {
+            char errorMsg[40];
+            printf("\\Error accepting the client. Code: %d.\n", clientSocket->error);
+            sprintf(errorMsg, "\\Error accepting the client. Code: %d.", clientSocket->error);
+            sendResponseToTheClient(errorMsg, socketFD);
+            close(socketFD);
+        }
+        else
+            creatingAThreadForEachNewClient(clientSocket);
     }
 }
 
@@ -53,6 +73,7 @@ clientSocket_t *acceptIncomingConnection(int serverSocketFD) {
     acceptedSocket->address = clientAddress;
     acceptedSocket->clientSocketFD = clientSocketFD;
     acceptedSocket->acceptedSuccessfully = clientSocketFD > 0;
+    acceptedSocket->room_id = -1;
 
     if(!acceptedSocket->acceptedSuccessfully)
         acceptedSocket->error = clientSocketFD;
@@ -60,17 +81,15 @@ clientSocket_t *acceptIncomingConnection(int serverSocketFD) {
     return acceptedSocket;
 }
 
-void receiveAndPrintIncomingDataOnSeparateThread(clientSocket_t *clientSocket) {
+void creatingAThreadForEachNewClient(clientSocket_t *clientSocket) {
     pthread_t id;
-    pthread_create(&id, NULL, receiveAndPrintIncomingData, clientSocket);
+    pthread_create(&id, NULL, handlingClientCommands, clientSocket);
 }
 
-void* receiveAndPrintIncomingData(void *arg) {
+void *handlingClientCommands(void *arg) {
     char buffer[MAX_MSG_LEN];
     clientSocket_t clientSocket = *(clientSocket_t*) arg;
     int socketFD = clientSocket.clientSocketFD;
-    strcpy(rooms[0].room_name, "main");
-    strcpy(rooms[1].room_name, "room1");
 
     while(1) {
         ssize_t amountReceived = recv(socketFD, buffer, MAX_MSG_LEN, 0);
@@ -80,30 +99,46 @@ void* receiveAndPrintIncomingData(void *arg) {
             printf("%s: %s\n", clientSocket.name, buffer);
 
             if (strcmp(buffer, "\\showrooms") == 0) {
-                char roomsList[MAX_NAME_LEN * MAX_ROOMS] = "";
-                for(int i = 0; i < MAX_ROOMS; ++i) {
-                    if(strcmp(rooms[i].room_name, "") != 0) {
-                        strcat(roomsList, rooms[i].room_name);
-                        strcat(roomsList, " | ");
-                    }
-                }
-                sprintf(buffer, "%s", roomsList);
-
-                sendResponseToTheClient(buffer, socketFD);
+                showroomsCommand(buffer, socketFD);
+            }
+            else if (strncmp(buffer, "\\createroom ", 12) == 0) {
+                clientSocket = createroomCommand(buffer, &clientSocket, socketFD);
+            }
+            else if (strncmp(buffer, "\\enterroom ", 11) == 0) {
+                clientSocket = enterroomCommand(buffer, &clientSocket, socketFD);
+            }
+            else if (strcmp(buffer, "\\leaveroom") == 0) {
+                clientSocket = leaveroomCommand(buffer, &clientSocket, socketFD);
             }
             else if (strncmp(buffer, "\\changenick ", 12) == 0) {
-                strcpy(clientSocket.name, buffer + 12);
-                sprintf(buffer, "Your nickname is now %s", clientSocket.name);
-                sendResponseToTheClient(buffer, socketFD);
+                changenickCommand(buffer, &clientSocket, socketFD);
             }
             else if (strcmp(buffer, "\\commands") == 0) {
                 commandList(buffer, socketFD);
             }
+            else if (strcmp(buffer, "\\showclients") == 0) {
+                char clientList[MAX_CLIENTS * (MAX_NAME_LEN + 4)] = "";
+                for (int i = 0; i < acceptedSocketsCount; ++i) {
+                    sprintf(buffer, "%s%d", acceptedSockets[i].name, acceptedSockets[i].room_id);
+                    strcat(buffer, " | ");
+                    strcat(clientList, buffer);
+                }
+                sendResponseToTheClient(clientList, socketFD);
+            }
+            else if (strncmp(buffer, "\\", 1) == 0) {
+                sprintf(buffer, "Command not found. Type \\commands to see the available commands");
+                sendResponseToTheClient(buffer, socketFD);
+            }
             else {
-                char msg[MAX_MSG_LEN];
-                strcpy(msg, buffer);
-                sprintf(buffer, "%s: %s", clientSocket.name, msg);
-                sendReceivedMessageToTheOtherClients(buffer, socketFD);
+                if (clientSocket.room_id == -1) {
+                    sprintf(buffer, "You are not in a room. Type \\commands to see the available commands");
+                    sendResponseToTheClient(buffer, socketFD);
+                }
+                else {
+                    char msg[MAX_MSG_LEN + MAX_NAME_LEN + 2];
+                    sprintf(msg, "%s: %s", clientSocket.name, buffer);
+                    sendReceivedMessageToARoom(msg, socketFD, clientSocket.room_id);
+                }
             }
         }
 
@@ -114,96 +149,122 @@ void* receiveAndPrintIncomingData(void *arg) {
     close(socketFD);
 }
 
+void commandList(char *buffer, int socketFD) {
+    char commands[] = "At any time, type the commands below to:\n"
+                      "\\showrooms - Show available rooms\n"
+                      "\\createroom - Create a new room\n"
+                      "\\enterroom [roomname] - Enter in room [roomname]\n"
+                      "\\leaveroom - Leave the current room\n"
+                      "\\changenick [yournick] - Change your nickname to [yournick]\n"
+                      "\\quit - Exit the Ulide chat";
+    sprintf(buffer, "%s", commands);
+    sendResponseToTheClient(buffer, socketFD);
+}
+
+void showroomsCommand(char *buffer, int socketFD) {
+    char roomsList[(MAX_NAME_LEN +3) * MAX_ROOMS] = "";
+    for(int i = 0; i < MAX_ROOMS; ++i) {
+        if(strcmp(rooms[i].name, "") != 0) {
+            strcat(roomsList, rooms[i].name);
+            strcat(roomsList, " | ");
+        }
+    }
+    if (strcmp(roomsList, "") == 0)
+        sprintf(buffer, "No rooms have been created yet. Type \\createroom to create a new room");
+    else
+        sprintf(buffer, "%s", roomsList);
+
+    sendResponseToTheClient(buffer, socketFD);
+}
+
+clientSocket_t createroomCommand(char *buffer, clientSocket_t *clientSocket, int socketFD) {
+    // Verify if the client is already in a room
+    if (clientSocket->room_id != -1) {
+        buffer = "You are already in a room. Type \\leaveroom to leave the current room";
+        sendResponseToTheClient(buffer, socketFD);
+    }
+
+    // Verify if the room name is already in use
+    for (int i = 0; i < MAX_ROOMS; ++i) {
+        if (strcmp(rooms[i].name, "") == 0) {
+            strcpy(rooms[i].name, buffer + 12);
+            rooms[i].id = i;
+            rooms[i].n_clients = 0;
+            pthread_mutex_init(&room_mutex[i], NULL);
+            pthread_mutex_lock(&room_mutex[i]);
+            rooms[i].n_clients++;
+            clientSocket->room_id = rooms[i].id;
+            pthread_mutex_unlock(&room_mutex[i]);
+            sprintf(buffer, "Room %s was created and now you are in it", rooms[i].name);
+            sendResponseToTheClient(buffer, socketFD);
+            break;
+        }
+    }
+
+    // Verify if there is no more room spaces available
+    if (strncmp(buffer, "\\createroom ", 12) == 0) {
+        sprintf(buffer, "No more room spaces available");
+        sendResponseToTheClient(buffer, socketFD);
+    }
+
+    return *clientSocket;
+}
+
+clientSocket_t enterroomCommand(char *buffer, clientSocket_t *clientSocket, int socketFD) {
+    for (int i = 0; i < MAX_ROOMS; ++i) {
+        if (strcmp(rooms[i].name, buffer + 11) == 0) {
+            pthread_mutex_lock(&room_mutex[i]);
+            rooms[i].n_clients++;
+            pthread_mutex_unlock(&room_mutex[i]);
+            clientSocket->room_id = rooms[i].id;
+            sprintf(buffer, "You have entered the room %s", rooms[i].name);
+            sendResponseToTheClient(buffer, socketFD);
+            break;
+        }
+    }
+    if (strncmp(buffer, "\\enterroom ", 11) == 0) {
+        sprintf(buffer, "Room %s does not exist", buffer + 11);
+        sendResponseToTheClient(buffer, socketFD);
+    }
+    return *clientSocket;
+}
+
+clientSocket_t leaveroomCommand(char *buffer, clientSocket_t *clientSocket, int socketFD) {
+    for (int i = 0; i < MAX_ROOMS; ++i) {
+        if (rooms[i].id == clientSocket->room_id) {
+            pthread_mutex_lock(&room_mutex[i]);
+            rooms[i].n_clients--;
+            // Destroy the room if there are no clients in it
+            if (rooms[i].n_clients == 0) {
+                strcpy(rooms[i].name, "");
+                rooms[i].id = -1;
+            }
+
+            pthread_mutex_unlock(&room_mutex[i]);
+            clientSocket->room_id = -1;
+            sprintf(buffer, "You have left the room %s", rooms[i].name);
+            sendResponseToTheClient(buffer, socketFD);
+            break;
+        }
+    }
+    return *clientSocket;
+}
+
+void changenickCommand(char *buffer, clientSocket_t *clientSocket, int socketFD) {
+    strcpy(clientSocket->name, buffer + 12);
+    sprintf(buffer, "Your nickname is now %s", clientSocket->name);
+    sendResponseToTheClient(buffer, socketFD);
+}
+
 void sendResponseToTheClient(char *buffer, int socketFD) {
     for(int i = 0; i < acceptedSocketsCount; ++i)
         if(acceptedSockets[i].clientSocketFD == socketFD)
             send(acceptedSockets[i].clientSocketFD, buffer, strlen(buffer), 0);
 }
 
-void sendReceivedMessageToTheOtherClients(char *buffer, int socketFD) {
-    for(int i = 0; i < acceptedSocketsCount; ++i)
+void sendReceivedMessageToARoom(char *buffer, int socketFD, int room_id) {
+    for(int i = 0; i < acceptedSocketsCount; i++)
         if(acceptedSockets[i].clientSocketFD != socketFD)
+        //if(acceptedSockets[i].room_id == room_id)
             send(acceptedSockets[i].clientSocketFD, buffer, strlen(buffer), 0);
 }
-
-void commandList(char *buffer, int socketFD) {
-    char commands[] = "At any time, type the commands below to:\n"
-           "\\quit - Leave the current room or log out\n"
-           "\\showrooms - Show available rooms\n"
-           "\\createroom - Create a new room\n"
-           "\\enterroom - Enter in a room\n"
-           "\\changenick [yournick] - Change your nickname\n"
-           "\\commands - Show this list of commands";
-    sprintf(buffer, "%s", commands);
-    sendResponseToTheClient(buffer, socketFD);
-}
-
-// Multiple Rooms
-
-/*
-void send_to_room(int room_id, char *msg, int sender_fd) {
-    int i, len = strlen(msg);
-    for (i = 0; i < MAX_ROOM_CLIENTS; i++) {
-        if (rooms[room_id].clients[i].clientFD != -1 && rooms[room_id].clients[i].clientFD != sender_fd) {
-            write(rooms[room_id].clients[i].clientFD, msg, len);
-        }
-    }
-    strncat(rooms[room_id].history, msg, MAX_MSG_LEN - 1);
-}
-
-void send_to_client(int fd, char *msg) {
-    write(fd, msg, strlen(msg));
-}
-
-void *handle_client(void *arg) {
-    client_t client = *(client_t*)arg;
-    char buffer[MAX_MSG_LEN];
-    int n, room_id = client.room_id;
-    char join_msg[MAX_MSG_LEN];
-    snprintf(join_msg, MAX_MSG_LEN, "%s joined the room.\n", client.name);
-    send_to_room(room_id, join_msg, client.clientFD);
-
-    while ((n = read(client.clientFD, buffer, MAX_MSG_LEN)) > 0) {
-        buffer[n] = '\0';
-        if (strcmp(buffer, "/quit\n") == 0) {
-            break;
-        }
-        if (strcmp(buffer, "/list\n") == 0) {
-            int i, len = 0;
-            char room_list[MAX_ROOMS * MAX_NAME_LEN];
-            for (i = 0; i < MAX_ROOMS; i++) {
-                if (rooms[i].id != -1) {
-                    len += snprintf(room_list + len, MAX_ROOMS * MAX_NAME_LEN - len,
-                                    "%s (%d)\n", rooms[i].name, rooms[i].n_clients);
-                }
-            }
-            send_to_client(client.clientFD, room_list);
-            continue;
-        }
-        if (buffer[0] == '/') {
-            send_to_client(client.clientFD, "Invalid command.\n");
-            continue;
-        }
-        char msg[MAX_MSG_LEN + MAX_NAME_LEN];
-        snprintf(msg, MAX_MSG_LEN + MAX_NAME_LEN, "[%s]: %s\n", client.name, buffer);
-        send_to_room(room_id, msg, client.clientFD);
-    }
-
-    close(client.clientFD);
-    snprintf(buffer, MAX_MSG_LEN, "%s left the room.\n", client.name);
-    send_to_room(room_id, buffer, client.clientFD);
-    rooms[room_id].n_clients--;
-    rooms[room_id].clients[client.clientFD].clientFD = -1;
-    pthread_mutex_unlock(&room_mutex[room_id]);
-    pthread_exit(NULL);
-}
-
-int find_empty_room() {
-    int i;
-    for (i = 0; i < MAX_ROOMS; i++) {
-        if (rooms[i].id == -1) {
-            return i;
-        }
-    }
-    return -1;
-}*/

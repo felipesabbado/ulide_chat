@@ -1,25 +1,32 @@
 #include "util.h"
 
-int createSocketConnection(char* ip) {
-    int socketFD = socket(AF_INET, SOCK_STREAM, 0);
-    struct sockaddr_in* address = createIPv4Address(ip);
-    int result = connect(socketFD, address, sizeof(*address));
+void createSocketConnection(char *ip, clientSocket_t *clientSocket) {
+    int clientSocketFD = socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in *clientAddress = createIPv4Address(ip, PORT);
+    socklen_t clientAddressSize = sizeof(struct sockaddr_in);
 
-    if(result == 0){
+    clientSocket->clientSocketFD = clientSocketFD;
+    clientSocket->address = *clientAddress;
+    clientSocket->acceptedSuccessfully = clientSocketFD > 0;
+
+    int result = connect(clientSocket->clientSocketFD, &clientSocket->address, clientAddressSize);
+
+    if (!clientSocket->acceptedSuccessfully) {
+        clientSocket->error = clientSocketFD;
+        printf("Client socket error %d\n", clientSocket->error);
+        exit(clientSocket->error);
+    } else if(result != 0) {
+        printf("Connection error %d\n", result);
+        exit(result);
+    }
+    else
         mainRoomBanner();
-    }
-    else {
-        printf("Error %d\n", result);
-        exit(1);
-    }
-
-    return socketFD;
 }
 
-struct sockaddr_in* createIPv4Address(char *ip) {
-    struct sockaddr_in * address = malloc(sizeof(struct sockaddr_in));
+struct sockaddr_in *createIPv4Address(char *ip, int port) {
+    struct sockaddr_in *address = malloc(sizeof(struct sockaddr_in));
     address->sin_family = AF_INET;
-    address->sin_port = htons(PORT);
+    address->sin_port = htons(port);
 
     if(strlen(ip) == 0)
         address->sin_addr.s_addr = INADDR_ANY;
@@ -36,22 +43,30 @@ void mainRoomBanner() {
            "| | |_| || |__  | | | |) || _|       | (__ | __ || - |  | |   |\n"
            "|  \\___/ |____||___||___/ |___|       \\___||_||_||_|_|  |_|   |\n");
     printf("***************************************************************\n");
+    printf("******************* Type \\commands for help *******************\n");
 }
 
-void startListeningAndPrintMessagesOnNewThread(int socketFD) {
+void startListeningAndPrintMessagesOnNewThread(clientSocket_t *clientSocket) {
     pthread_t id;
-    pthread_create(&id, NULL,
-                   listenAndPrintIncomingMessages, (void *) socketFD);
+    pthread_create(&id, NULL, listenAndPrintIncomingMessages, clientSocket);
 }
 
-void *listenAndPrintIncomingMessages(void* socketFD) {
+void *listenAndPrintIncomingMessages(void *arg) {
     char buffer[MAX_MSG_LEN];
+    clientSocket_t clientSocket = *(clientSocket_t*) arg;
+    int socketFD = clientSocket.clientSocketFD;
 
     while(1) {
-        ssize_t amountReceived = recv((int) socketFD,
-                                      buffer, MAX_MSG_LEN, 0);
+        ssize_t amountReceived = recv(socketFD, buffer, MAX_MSG_LEN, 0);
 
         if(amountReceived > 0) {
+            if (strncmp(buffer, "\\Error", 6) == 0
+            || strncmp(buffer, "\\Server", 7) == 0) {
+                printf("%s\n", buffer);
+                close(socketFD);
+                exit(0);
+            }
+
             buffer[amountReceived] = 0;
             printf("%s\n", buffer);
         }
@@ -60,7 +75,7 @@ void *listenAndPrintIncomingMessages(void* socketFD) {
             break;
     }
 
-    close((int) socketFD);
+    close(socketFD);
 }
 
 void sendMessagesToServer(int socketFD) {
@@ -84,7 +99,6 @@ void sendMessagesToServer(int socketFD) {
         msg[charCount - 1] = 0;
 
         sprintf(buffer, "%s", msg);
-        //sprintf(buffer, "%s: %s", name, msg);
 
         if (charCount > 0) {
             if (strcmp(msg, "\\quit") == 0)

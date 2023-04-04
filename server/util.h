@@ -3,7 +3,6 @@
 
 #define PORT 2000
 #define MAX_CLIENTS 50
-#define MAX_ROOM_CLIENTS 10
 #define MAX_ROOMS 5
 #define MAX_NAME_LEN 20
 #define MAX_MSG_LEN 1024
@@ -18,26 +17,23 @@
 #include <unistd.h>
 #include <pthread.h>
 
-typedef struct clientExample {
-    int clientFD;
-    char name[MAX_NAME_LEN];
-    int room_id;
-} client_t;
+typedef struct clientSocket clientSocket_t;
+typedef struct room room_t;
 
-typedef struct room {
+struct room {
     int id;
-    char room_name[MAX_NAME_LEN];
+    char name[MAX_NAME_LEN];
     int n_clients;
-    client_t clients[MAX_ROOM_CLIENTS];
-} room_t;
+};
 
-typedef struct clientSocket {
+struct clientSocket {
     int clientSocketFD;
     struct sockaddr_in address;
     char name[MAX_NAME_LEN];
+    int room_id;
     int error;
     int acceptedSuccessfully; // boolean
-} clientSocket_t;
+};
 
 int createSocketConnection();
 
@@ -47,20 +43,24 @@ void startAcceptingIncomingConnections(int serverSocketFD);
 
 clientSocket_t *acceptIncomingConnection(int serverSocketFD);
 
-void receiveAndPrintIncomingDataOnSeparateThread(clientSocket_t *clientSocket);
+void creatingAThreadForEachNewClient(clientSocket_t *clientSocket);
 
-void* receiveAndPrintIncomingData(void *arg);
-
-void sendResponseToTheClient(char* buffer, int socketFD);
-
-void sendReceivedMessageToTheOtherClients(char *buffer, int socketFD);
+void* handlingClientCommands(void *arg);
 
 void commandList(char *buffer, int socketFD);
 
-// Multiples Rooms
-void send_to_room(int room_id, char *msg, int sender_fd);
-void send_to_client(int fd, char *msg);
-void *handle_client(void *arg);
-int find_empty_room();
+void showroomsCommand(char *buffer, int socketFD);
+
+clientSocket_t createroomCommand(char *buffer, clientSocket_t *clientSocket, int socketFD);
+
+clientSocket_t enterroomCommand(char *buffer, clientSocket_t *clientSocket, int socketFD);
+
+clientSocket_t leaveroomCommand(char *buffer, clientSocket_t *clientSocket, int socketFD);
+
+void changenickCommand(char *buffer, clientSocket_t *clientSocket, int socketFD);
+
+void sendResponseToTheClient(char* buffer, int socketFD);
+
+void sendReceivedMessageToARoom(char *buffer, int socketFD, int room_id);
 
 #endif //UTIL_UTIL_H

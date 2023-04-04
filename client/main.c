@@ -1,10 +1,12 @@
 #include "util.h"
 
 int main(int argc, char *argv[]) {
-    int socketFD = createSocketConnection("127.0.0.1");
-    //int socketFD = createSocketConnection(argv[1]);
+    clientSocket_t clientSocket;
+    createSocketConnection("127.0.0.1", &clientSocket);
+    //createSocketConnection(argv[1], *clientSocket);
+    int socketFD = clientSocket.clientSocketFD;
 
-    startListeningAndPrintMessagesOnNewThread(socketFD);
+    startListeningAndPrintMessagesOnNewThread(&clientSocket);
     sendMessagesToServer(socketFD);
 
     return 0;
