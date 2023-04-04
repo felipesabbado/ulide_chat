@@ -146,14 +146,14 @@ void *handlingClientCommands(void (*arg)) {
                 sendResponseToTheClient(buffer, socketFD);
             }
             else {
-                if (strcmp(clientSocket->name, "") == 0) {
+                if (strcmp(clientSocket->room_name, "") == 0) {
                     sprintf(buffer, "You are not in a room. Type \\commands to see the available commands");
                     sendResponseToTheClient(buffer, socketFD);
                 }
                 else {
                     char msg[MAX_MSG_LEN + MAX_NAME_LEN + 2];
                     sprintf(msg, "%s: %s", clientSocket->name, buffer);
-                    sendReceivedMessageToARoom(msg, socketFD, &clientSocket->room_name);
+                    sendReceivedMessageToARoom(msg, socketFD, clientSocket->room_name);
                 }
             }
         }
