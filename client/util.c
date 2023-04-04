@@ -101,8 +101,10 @@ void sendMessagesToServer(int socketFD) {
         sprintf(buffer, "%s", msg);
 
         if (charCount > 0) {
-            if (strcmp(msg, "\\quit") == 0)
+            if (strcmp(msg, "\\quit") == 0) {
+                send(socketFD, buffer, strlen(buffer), 0);
                 break;
+            }
 
             send(socketFD, buffer, strlen(buffer), 0);
         }
