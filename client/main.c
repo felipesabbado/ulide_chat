@@ -1,20 +1,13 @@
 #include "util.h"
 
 int main(int argc, char *argv[]) {
-    int socketFD = createTCPIPv4Socket();
-    struct sockaddr_in* address = createIPv4Address(argv[1], 2000);
-    printf("ip: %s\n", argv[1]);
+    clientSocket_t clientSocket;
+    //createSocketConnection("127.0.0.1", &clientSocket);
+    createSocketConnection(argv[1], &clientSocket);
+    int socketFD = clientSocket.clientSocketFD;
 
-    int result = connect(socketFD, address, sizeof(*address));
-
-    char *name;
-    char *line;
-    size_t lineSize;
-    clientInterface(result, &name, &line, &lineSize);
-
-    startListeningAndPrintMessagesOnNewThread(socketFD);
-
-    receiveAndPrintIncomingMessage(socketFD, name, &line, &lineSize);
+    startListeningAndPrintMessagesOnNewThread(&clientSocket);
+    sendMessagesToServer(socketFD);
 
     return 0;
 }
