@@ -21,7 +21,7 @@ typedef struct clientSocket clientSocket_t;
 typedef struct room room_t;
 
 struct room {
-    int id;
+    int id; // -1 if room not "exist"
     char name[MAX_NAME_LEN];
     int n_clients;
 };
@@ -30,7 +30,7 @@ struct clientSocket {
     int clientSocketFD;
     struct sockaddr_in address;
     char name[MAX_NAME_LEN];
-    char room_name[MAX_NAME_LEN];
+    int room_id; // -1 if not in a room
     int error;
     int acceptedSuccessfully; // boolean
 };
@@ -51,16 +51,22 @@ void commandList(char *buffer, int socketFD);
 
 void showroomsCommand(char *buffer, int socketFD);
 
-clientSocket_t * createroomCommand(char *buffer, clientSocket_t *clientSocket, int socketFD);
+void createroomCommand(char *buffer, clientSocket_t *clientSocket, int socketFD);
 
-clientSocket_t * enterroomCommand(char *buffer, clientSocket_t *clientSocket, int socketFD);
+void enterroomCommand(char *buffer, clientSocket_t *clientSocket, int socketFD);
 
-clientSocket_t * leaveroomCommand(char *buffer, clientSocket_t *clientSocket, int socketFD);
+void leaveroomCommand(char *buffer, clientSocket_t *clientSocket, int socketFD);
 
 void changenickCommand(char *buffer, clientSocket_t *clientSocket, int socketFD);
 
+void showclientCommand(char *buffer, int socketFD);
+
+void quitCommand(char *buffer, const clientSocket_t *clientSocket, int socketFD);
+
+void decreaseClientsInARoom(int room_id);
+
 void sendResponseToTheClient(char* buffer, int socketFD);
 
-void sendReceivedMessageToARoom(char *buffer, int socketFD, char *room_name);
+void sendReceivedMessageToARoom(char *buffer, int socketFD, int room_id);
 
 #endif //UTIL_UTIL_H
