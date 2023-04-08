@@ -9,7 +9,9 @@ void createSocketConnection(char *ip, clientSocket_t *clientSocket) {
     clientSocket->address = *clientAddress;
     clientSocket->acceptedSuccessfully = clientSocketFD > 0;
 
-    int result = connect(clientSocket->clientSocketFD, &clientSocket->address, clientAddressSize);
+    int result = connect(clientSocket->clientSocketFD,
+                         (struct sockaddr *) &clientSocket->address,
+                                 clientAddressSize);
 
     if (!clientSocket->acceptedSuccessfully) {
         clientSocket->error = clientSocketFD;
@@ -28,10 +30,12 @@ struct sockaddr_in *createIPv4Address(char *ip, int port) {
     address->sin_family = AF_INET;
     address->sin_port = htons(port);
 
-    if(strlen(ip) == 0)
+    if(ip == NULL) {
+        ip = "127.0.0.1";
         address->sin_addr.s_addr = INADDR_ANY;
-    else
-        inet_pton(AF_INET, ip, &address->sin_addr.s_addr);
+    }
+
+    inet_pton(AF_INET, ip, &address->sin_addr.s_addr);
 
     return address;
 }
