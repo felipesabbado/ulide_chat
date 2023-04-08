@@ -17,7 +17,7 @@ int createSocketConnection() {
     else
         exit(1);
 
-    int listenResult = listen(serverSocketFD, MAX_CLIENTS);
+    listen(serverSocketFD, MAX_CLIENTS);
 
     return serverSocketFD;
 }
@@ -69,7 +69,9 @@ void startAcceptingIncomingConnections(int serverSocketFD) {
 clientSocket_t acceptIncomingConnection(int serverSocketFD) {
     struct sockaddr_in clientAddress;
     socklen_t clientAddressSize = sizeof(struct sockaddr_in);
-    int clientSocketFD = accept(serverSocketFD, &clientAddress, &clientAddressSize);
+    int clientSocketFD = accept(serverSocketFD,
+                                (struct sockaddr *) &clientAddress,
+                                        &clientAddressSize);
 
     clientSocket_t *acceptedSocket = malloc(sizeof(clientSocket_t));
     acceptedSocket->address = clientAddress;
@@ -151,7 +153,7 @@ void *handlingClientCommands(void (*arg)) {
 void commandList(char *buffer, int socketFD) {
     char commands[] = "At any time, type the commands below to:\n"
                       "\\showrooms - Show available rooms\n"
-                      "\\createroom - Create a new room\n"
+                      "\\createroom [roomname] - Create a new room\n"
                       "\\enterroom [roomname] - Enter in room [roomname]\n"
                       "\\leaveroom - Leave the current room\n"
                       "\\changenick [yournick] - Change your nickname to [yournick]\n"
@@ -165,12 +167,6 @@ void showroomsCommand(char *buffer, int socketFD) {
     for(int i = 0; i < MAX_ROOMS; ++i) {
         if(strcmp(rooms[i].name, "") != 0) {
             strcat(roomsList, rooms[i].name);
-
-            // Add the room id to the list for testing purposes
-            char id[6];
-            sprintf(id, "id: %d", rooms[i].id);
-            strcat(roomsList, id);
-
             strcat(roomsList, " | ");
         }
     }
