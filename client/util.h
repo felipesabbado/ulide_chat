@@ -1,9 +1,6 @@
 #ifndef UTIL_UTIL_H
 #define UTIL_UTIL_H
 
-#define PORT 2000
-#define MAX_MSG_LEN 1024
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -14,20 +11,14 @@
 #include <unistd.h>
 #include <pthread.h>
 
-typedef struct clientSocket {
-    int clientSocketFD;
-    struct sockaddr_in address;
-    int acceptedSuccessfully; // boolean
-    int error;
-} clientSocket_t;
+#define PORT 2000
+#define MAX_MSG_LEN 1024
 
-void createSocketConnection(char *ip, clientSocket_t *clientSocket);
-
-struct sockaddr_in *createIPv4Address(char *ip, int port);
+int createSocketConnection(char *ip, int port);
 
 void mainRoomBanner();
 
-void startListeningAndPrintMessagesOnNewThread(clientSocket_t *clientSocket);
+void startListeningAndPrintMessagesOnNewThread(int *socketFD);
 
 void* listenAndPrintIncomingMessages(void *arg);
 
