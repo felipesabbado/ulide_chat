@@ -1,7 +1,7 @@
 #include "util.h"
 
 int main() {
-    int serverSocketFD = createSocketConnection();
+    int serverSocketFD = createSocketConnection("", PORT);
 
     startAcceptingIncomingConnections(serverSocketFD);
 

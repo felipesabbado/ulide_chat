@@ -1,43 +1,34 @@
 #include "util.h"
 
-void createSocketConnection(char *ip, clientSocket_t *clientSocket) {
+int createSocketConnection(char *ip, int port) {
+    struct sockaddr_in clientAddress;
+
+    clientAddress.sin_family = AF_INET;
+    clientAddress.sin_port = htons(port);
+    clientAddress.sin_addr.s_addr = inet_addr(ip);
+
     int clientSocketFD = socket(AF_INET, SOCK_STREAM, 0);
-    struct sockaddr_in *clientAddress = createIPv4Address(ip, PORT);
-    socklen_t clientAddressSize = sizeof(struct sockaddr_in);
 
-    clientSocket->clientSocketFD = clientSocketFD;
-    clientSocket->address = *clientAddress;
-    clientSocket->acceptedSuccessfully = clientSocketFD > 0;
-
-    int result = connect(clientSocket->clientSocketFD,
-                         (struct sockaddr *) &clientSocket->address,
-                                 clientAddressSize);
-
-    if (!clientSocket->acceptedSuccessfully) {
-        clientSocket->error = clientSocketFD;
-        printf("Client socket error %d\n", clientSocket->error);
-        exit(clientSocket->error);
-    } else if(result != 0) {
-        printf("Connection error %d\n", result);
-        exit(result);
-    }
-    else
-        mainRoomBanner();
-}
-
-struct sockaddr_in *createIPv4Address(char *ip, int port) {
-    struct sockaddr_in *address = malloc(sizeof(struct sockaddr_in));
-    address->sin_family = AF_INET;
-    address->sin_port = htons(port);
-
-    if(ip == NULL) {
-        ip = "127.0.0.1";
-        address->sin_addr.s_addr = INADDR_ANY;
+    if (clientSocketFD < 0) {
+        perror("Socket creation error");
+        close(clientSocketFD);
+        exit(EXIT_FAILURE);
     }
 
-    inet_pton(AF_INET, ip, &address->sin_addr.s_addr);
+    int connectionStatus = connect(clientSocketFD,
+                                   (struct sockaddr *) &clientAddress,
+                                   sizeof(clientAddress));
 
-    return address;
+
+    if (connectionStatus != 0) {
+        perror("Connection error");
+        close(clientSocketFD);
+        exit(EXIT_FAILURE);
+    }
+
+    mainRoomBanner();
+
+    return clientSocketFD;
 }
 
 void mainRoomBanner() {
@@ -50,24 +41,23 @@ void mainRoomBanner() {
     printf("******************* Type \\commands for help *******************\n");
 }
 
-void startListeningAndPrintMessagesOnNewThread(clientSocket_t *clientSocket) {
+void startListeningAndPrintMessagesOnNewThread(int *socketFD) {
     pthread_t id;
-    pthread_create(&id, NULL, listenAndPrintIncomingMessages, clientSocket);
+    pthread_create(&id, NULL, listenAndPrintIncomingMessages, socketFD);
 }
 
 void *listenAndPrintIncomingMessages(void *arg) {
     char buffer[MAX_MSG_LEN];
-    clientSocket_t clientSocket = *(clientSocket_t*) arg;
-    int socketFD = clientSocket.clientSocketFD;
+    int *socketFD = (int *) arg;
 
     while(1) {
-        ssize_t amountReceived = recv(socketFD, buffer, MAX_MSG_LEN, 0);
+        ssize_t amountReceived = recv(*socketFD, buffer, MAX_MSG_LEN, 0);
 
         if(amountReceived > 0) {
             if (strncmp(buffer, "\\Error", 6) == 0
             || strncmp(buffer, "\\Server", 7) == 0) {
                 printf("%s\n", buffer);
-                close(socketFD);
+                close(*socketFD);
                 exit(0);
             }
 
@@ -79,7 +69,9 @@ void *listenAndPrintIncomingMessages(void *arg) {
             break;
     }
 
-    close(socketFD);
+    close(*socketFD);
+
+    return NULL;
 }
 
 void sendMessagesToServer(int socketFD) {

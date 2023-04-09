@@ -35,9 +35,7 @@ struct clientSocket {
     int acceptedSuccessfully; // boolean
 };
 
-int createSocketConnection();
-
-struct sockaddr_in* createIPv4Address(char *ip, int port);
+int createSocketConnection(char *ip, int port);
 
 void startAcceptingIncomingConnections(int serverSocketFD);
 
