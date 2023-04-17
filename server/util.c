@@ -50,6 +50,7 @@ void startAcceptingIncomingConnections(int serverSocketFD) {
 
         // If the server is full, send a message to the client
         pthread_mutex_lock(&acceptedSocketsMutex);
+        printf("LOG: Locking acceptedSocketsMutex\n");
         if (acceptedSocketsCount == MAX_CLIENTS) {
             char buffer[] = "\\Server is full. Try again later";
             printf("LOG: Server is full\n");
@@ -67,10 +68,12 @@ void startAcceptingIncomingConnections(int serverSocketFD) {
         }
         else {
             acceptedSockets[acceptedSocketsCount++] = clientSocket;
+            printf("LOG: Accepted sockets count: %d\n", acceptedSocketsCount);
             creatingAThreadForEachNewClient(&acceptedSockets[acceptedSocketsCount-1]);
         }
 
         pthread_mutex_unlock(&acceptedSocketsMutex);
+        printf("LOG: Unlocking acceptedSocketsMutex\n");
     }
 }
 
@@ -96,6 +99,7 @@ clientSocket_t acceptIncomingConnection(int serverSocketFD) {
 void creatingAThreadForEachNewClient(void *clientSocket) {
     pthread_t id;
     pthread_create(&id, NULL, handlingClientCommands, clientSocket);
+    printf("LOG: Creating a thread for a new client\n");
 }
 
 void *handlingClientCommands(void (*arg)) {
@@ -212,12 +216,15 @@ void createroomCommand(char *buffer, clientSocket_t *clientSocket, int socketFD)
     for (int i = 0; i < MAX_ROOMS; i++) {
         if (strcmp(rooms[i].name, "") == 0) {
             pthread_mutex_init(&room_mutex[i], NULL);
+            printf("LOG: Creating a mutex for room %d\n", i);
             pthread_mutex_lock(&room_mutex[i]);
+            printf("LOG: Locking mutex for room %d to add the room in array and initialize its variables\n", i);
             strcpy(rooms[i].name, buffer + 12);
             rooms[i].id = i;
             rooms[i].n_clients = 1;
             clientSocket->room_id = rooms[i].id;
             pthread_mutex_unlock(&room_mutex[i]);
+            printf("LOG: Unlocking mutex for room %s\n", rooms[i].name);
             sprintf(buffer, "Room %s was created and now you are in it", rooms[i].name);
             sendResponseToTheClient(buffer, socketFD);
             break;
@@ -240,8 +247,10 @@ void enterroomCommand(char *buffer, clientSocket_t *clientSocket, int socketFD) 
     for (int i = 0; i < MAX_ROOMS; ++i) {
         if (strcmp(rooms[i].name, buffer + 11) == 0) {
             pthread_mutex_lock(&room_mutex[i]);
+            printf("LOG: Locking mutex for room %s to increase clients in it\n", rooms[i].name);
             rooms[i].n_clients++;
             pthread_mutex_unlock(&room_mutex[i]);
+            printf("LOG: Unlocking mutex for room %s\n", rooms[i].name);
             clientSocket->room_id = rooms[i].id;
             sprintf(buffer, "You have entered the room %s", rooms[i].name);
             sendResponseToTheClient(buffer, socketFD);
@@ -262,11 +271,12 @@ void leaveroomCommand(char *buffer, clientSocket_t *clientSocket, int socketFD) 
     }
 
     for (int i = 0; i < MAX_ROOMS; ++i) {
-        //if (strcmp(rooms[i].name, clientSocket->room_name) == 0) {
         if (clientSocket->room_id == rooms[i].id) {
             pthread_mutex_lock(&room_mutex[i]);
+            printf("LOG: Locking mutex for room %s to decrease clients in it\n", rooms[i].name);
             decreaseClientsInARoom(i);
             pthread_mutex_unlock(&room_mutex[i]);
+            printf("LOG: Unlocking mutex for room %s\n", rooms[i].name);
 
             clientSocket->room_id = -1;
 
@@ -284,7 +294,12 @@ void changenickCommand(char *buffer, clientSocket_t *clientSocket, int socketFD)
     // Verify if the nickname is already in use
     for (int i = 0; i < acceptedSocketsCount; i++) {
         if (strcmp(acceptedSockets[i].name, buffer + 12) == 0) {
-            sprintf(buffer, "\\This nickname is already in use. Please try again.");
+            char name[MAX_NAME_LEN];
+            srand(time(NULL));
+            sprintf(name, "Anonymous%d", rand() % 1000);
+            sprintf(buffer, "\\This nickname is already in use. Your nickname is now %s."
+                            " Type \\changenick to change it.", name);
+            strcpy(clientSocket->name, name);
             sendResponseToTheClient(buffer, socketFD);
             return;
         }
@@ -310,14 +325,17 @@ void quitCommand(char *buffer, const clientSocket_t *clientSocket, int socketFD)
     // If the client is in a room, leave the room and destroy it if it is empty
     int room_id = clientSocket->room_id;
     pthread_mutex_lock(&room_mutex[room_id]);
+    printf("LOG: Locking mutex for room %s to decrease clients in it\n", rooms[room_id].name);
     decreaseClientsInARoom(room_id);
     pthread_mutex_unlock(&room_mutex[room_id]);
-    sprintf(buffer, "%s left the room", clientSocket->name);
+    printf("LOG: Unlocking mutex for room %s\n", rooms[room_id].name);
+    sprintf(buffer, "%s exit the Ulide Chat", clientSocket->name);
     sendReceivedMessageToARoom(buffer, clientSocket->clientSocketFD ,room_id);
 
     // Remove the client from the acceptedSockets array
     pthread_mutex_lock(&acceptedSocketsMutex);
-    for (int i = 0; i < acceptedSocketsCount; ++i) {
+    printf("LOG: Locking mutex for acceptedSockets array to remove the exiting client\n");
+    for (int i = 0; i < acceptedSocketsCount; i++) {
         if (acceptedSockets[i].clientSocketFD == socketFD) {
             for (int j = i; j < acceptedSocketsCount - 1; ++j) {
                 acceptedSockets[j] = acceptedSockets[j + 1];
@@ -327,9 +345,11 @@ void quitCommand(char *buffer, const clientSocket_t *clientSocket, int socketFD)
     }
     acceptedSocketsCount--;
     pthread_mutex_unlock(&acceptedSocketsMutex);
+    printf("LOG: Unlocking mutex for acceptedSockets array\n");
 
     // Close the socket and exit the thread
     close(socketFD);
+    printf("LOG: Closing the socket and exit the thread\n");
     pthread_exit(NULL);
 }
 
