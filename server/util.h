@@ -1,12 +1,6 @@
 #ifndef UTIL_UTIL_H
 #define UTIL_UTIL_H
 
-#define PORT 2000
-#define MAX_CLIENTS 50
-#define MAX_ROOMS 5
-#define MAX_NAME_LEN 20
-#define MAX_MSG_LEN 1024
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -16,6 +10,17 @@
 #include <malloc.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <openssl/rsa.h>
+#include <openssl/bn.h>
+#include <openssl/pem.h>
+
+#define PORT 2000
+#define MAX_CLIENTS 50
+#define MAX_ROOMS 5
+#define MAX_NAME_LEN 20
+#define MAX_BUFFER_LEN 1024
+#define MAX_MSG_LEN 500
+#define KEY_LEN 4096
 
 typedef struct clientSocket clientSocket_t;
 typedef struct room room_t;
@@ -33,6 +38,7 @@ struct clientSocket {
     int room_id; // -1 if not in a room
     int error;
     int acceptedSuccessfully; // boolean
+    char pubkey[KEY_LEN];
 };
 
 int createSocketConnection(char *ip, int port);
@@ -45,7 +51,7 @@ void creatingAThreadForEachNewClient(void *clientSocket);
 
 void *handlingClientCommands(void (*arg));
 
-void commandList(char *buffer, int socketFD);
+void commandList(int socketFD);
 
 void showroomsCommand(char *buffer, int socketFD);
 
@@ -66,5 +72,12 @@ void decreaseClientsInARoom(int room_id);
 void sendResponseToTheClient(char* buffer, int socketFD);
 
 void sendReceivedMessageToARoom(char *buffer, int socketFD, int room_id);
+
+void createKeysRSA(char **prvkey, char **pubkey);
+
+char * encryptMessage(const char *pubkey, const char *buffer,
+                      int *ciphertext_len);
+
+char * decryptMessage(const char *prvkey, const char *ciphertext);
 
 #endif //UTIL_UTIL_H

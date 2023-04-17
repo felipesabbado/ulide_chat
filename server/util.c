@@ -52,7 +52,7 @@ void startAcceptingIncomingConnections(int serverSocketFD) {
         pthread_mutex_lock(&acceptedSocketsMutex);
         if (acceptedSocketsCount == MAX_CLIENTS) {
             char buffer[] = "\\Server is full. Try again later";
-            printf("Server is full\n");
+            printf("LOG: Server is full\n");
             sendResponseToTheClient(buffer, socketFD);
             close(socketFD);
         }
@@ -60,8 +60,8 @@ void startAcceptingIncomingConnections(int serverSocketFD) {
         // If the client was not accepted, send error message to the client
         if(!clientSocket.acceptedSuccessfully) {
             char errorMsg[40];
-            printf("\\Error accepting the client. Code: %d.\n", clientSocket.error);
-            sprintf(errorMsg, "\\Error accepting the client. Code: %d.", clientSocket.error);
+            printf("\\LOG: Error accepting the client. Code %d.\n", clientSocket.error);
+            sprintf(errorMsg, "\\Error accepting the client. Code %d.", clientSocket.error);
             sendResponseToTheClient(errorMsg, socketFD);
             close(socketFD);
         }
@@ -99,54 +99,66 @@ void creatingAThreadForEachNewClient(void *clientSocket) {
 }
 
 void *handlingClientCommands(void (*arg)) {
-    char buffer[MAX_MSG_LEN];
+    char buffer[MAX_BUFFER_LEN];
     clientSocket_t *clientSocket = arg;
     int socketFD = clientSocket->clientSocketFD;
 
+    char *server_prvkey = malloc(KEY_LEN);
+    char *server_pubkey = malloc(KEY_LEN);
+
     while(1) {
-        ssize_t amountReceived = recv(socketFD, buffer, MAX_MSG_LEN, 0);
+        ssize_t amountReceived = recv(socketFD, buffer, MAX_BUFFER_LEN, 0);
 
         if(amountReceived > 0) {
             buffer[amountReceived] = 0;
-            printf("%s: %s\n", clientSocket->name, buffer);
 
-            if (strcmp(buffer, "\\commands") == 0) {
-                commandList(buffer, socketFD);
-            }
-            else if (strcmp(buffer, "\\showrooms") == 0) {
-                showroomsCommand(buffer, socketFD);
-            }
-            else if (strncmp(buffer, "\\createroom ", 12) == 0) {
-                createroomCommand(buffer, clientSocket, socketFD);
-            }
-            else if (strncmp(buffer, "\\enterroom ", 11) == 0) {
-                enterroomCommand(buffer, clientSocket, socketFD);
-            }
-            else if (strcmp(buffer, "\\leaveroom") == 0) {
-                leaveroomCommand(buffer, clientSocket, socketFD);
-            }
-            else if (strncmp(buffer, "\\changenick ", 12) == 0) {
-                changenickCommand(buffer, clientSocket, socketFD);
-            }
-            else if (strcmp(buffer, "\\showclients") == 0) {
-                showclientCommand(buffer, socketFD);
-            }
-            else if (strcmp(buffer, "\\quit") == 0) {
-                quitCommand(buffer, clientSocket, socketFD);
-            }
-            else if (strncmp(buffer, "\\", 1) == 0) {
-                sprintf(buffer, "Command not found. Type \\commands to see the available commands");
-                sendResponseToTheClient(buffer, socketFD);
+            if (strncmp(buffer, "-----BEGIN RSA PUBLIC KEY-----", 30) == 0) {
+                strcpy(clientSocket->pubkey, buffer);
+                createKeysRSA(&server_prvkey, &server_pubkey);
+                send(socketFD, server_pubkey, strlen(server_pubkey), 0);
             }
             else {
-                if (clientSocket->room_id == -1) {
-                    sprintf(buffer, "You are not in a room. Type \\commands to see the available commands");
-                    sendResponseToTheClient(buffer, socketFD);
+                char *text = decryptMessage(server_prvkey, buffer);
+                printf("%s: %s\n", clientSocket->name, text);
+
+                if (strcmp(text, "\\commands") == 0) {
+                    commandList(socketFD);
+                }
+                else if (strcmp(text, "\\showrooms") == 0) {
+                    showroomsCommand(text, socketFD);
+                }
+                else if (strncmp(text, "\\createroom ", 12) == 0) {
+                    createroomCommand(text, clientSocket, socketFD);
+                }
+                else if (strncmp(text, "\\enterroom ", 11) == 0) {
+                    enterroomCommand(text, clientSocket, socketFD);
+                }
+                else if (strcmp(text, "\\leaveroom") == 0) {
+                    leaveroomCommand(text, clientSocket, socketFD);
+                }
+                else if (strncmp(text, "\\changenick ", 12) == 0) {
+                    changenickCommand(text, clientSocket, socketFD);
+                }
+                else if (strcmp(text, "\\showclients") == 0) {
+                    showclientCommand(text, socketFD);
+                }
+                else if (strcmp(text, "\\quit") == 0) {
+                    quitCommand(text, clientSocket, socketFD);
+                }
+                else if (strncmp(text, "\\", 1) == 0) {
+                    sprintf(text, "Command not found. Type \\commands to see the available commands");
+                    sendResponseToTheClient(text, socketFD);
                 }
                 else {
-                    char msg[MAX_MSG_LEN + MAX_NAME_LEN + 2];
-                    sprintf(msg, "%s: %s", clientSocket->name, buffer);
-                    sendReceivedMessageToARoom(msg, socketFD, clientSocket->room_id);
+                    if (clientSocket->room_id == -1) {
+                        sprintf(text, "You are not in a room. Type \\commands to see the available commands");
+                        sendResponseToTheClient(text, socketFD);
+                    }
+                    else {
+                        char msg[MAX_MSG_LEN + MAX_NAME_LEN + 2];
+                        sprintf(msg, "%s: %s", clientSocket->name, text);
+                        sendReceivedMessageToARoom(msg, socketFD, clientSocket->room_id);
+                    }
                 }
             }
         }
@@ -155,10 +167,14 @@ void *handlingClientCommands(void (*arg)) {
             break;
     }
 
+    free(server_prvkey);
+    free(server_pubkey);
     close(socketFD);
+
+    return NULL;
 }
 
-void commandList(char *buffer, int socketFD) {
+void commandList(int socketFD) {
     char commands[] = "At any time, type the commands below to:\n"
                       "\\showrooms - Show available rooms\n"
                       "\\createroom [roomname] - Create a new room\n"
@@ -166,8 +182,7 @@ void commandList(char *buffer, int socketFD) {
                       "\\leaveroom - Leave the current room\n"
                       "\\changenick [yournick] - Change your nickname to [yournick]\n"
                       "\\quit - Exit the Ulide chat";
-    sprintf(buffer, "%s", commands);
-    sendResponseToTheClient(buffer, socketFD);
+    sendResponseToTheClient(commands, socketFD);
 }
 
 void showroomsCommand(char *buffer, int socketFD) {
@@ -189,7 +204,7 @@ void showroomsCommand(char *buffer, int socketFD) {
 void createroomCommand(char *buffer, clientSocket_t *clientSocket, int socketFD) {
     // Verify if the client is already in a room
     if (clientSocket->room_id > -1 ) {
-        buffer = "You are already in a room. Type \\leaveroom to leave the current room";
+        sprintf(buffer, "You are already in a room. Type \\leaveroom to leave the current room");
         sendResponseToTheClient(buffer, socketFD);
     }
 
@@ -269,7 +284,7 @@ void changenickCommand(char *buffer, clientSocket_t *clientSocket, int socketFD)
     // Verify if the nickname is already in use
     for (int i = 0; i < acceptedSocketsCount; i++) {
         if (strcmp(acceptedSockets[i].name, buffer + 12) == 0) {
-            sprintf(buffer, "Nickname %s is already in use. Please try again.", buffer + 12);
+            sprintf(buffer, "\\This nickname is already in use. Please try again.");
             sendResponseToTheClient(buffer, socketFD);
             return;
         }
@@ -291,8 +306,8 @@ void showclientCommand(char *buffer, int socketFD) {
     sendResponseToTheClient(clientList, socketFD);
 }
 
-void quitCommand(char *buffer, const clientSocket_t *clientSocket, int socketFD) {// If the client is in a room,
-// leave the room and destroy it if it is empty
+void quitCommand(char *buffer, const clientSocket_t *clientSocket, int socketFD) {
+    // If the client is in a room, leave the room and destroy it if it is empty
     int room_id = clientSocket->room_id;
     pthread_mutex_lock(&room_mutex[room_id]);
     decreaseClientsInARoom(room_id);
@@ -328,14 +343,90 @@ void decreaseClientsInARoom(int room_id) {
 }
 
 void sendResponseToTheClient(char *buffer, int socketFD) {
-    for(int i = 0; i < acceptedSocketsCount; ++i)
-        if(acceptedSockets[i].clientSocketFD == socketFD)
-            send(acceptedSockets[i].clientSocketFD, buffer, strlen(buffer), 0);
+    int cipherLen;
+    for (int i = 0; i < acceptedSocketsCount; i++) {
+        if (acceptedSockets[i].clientSocketFD == socketFD) {
+            char *encryptedMessage = encryptMessage(acceptedSockets[i].pubkey, buffer, &cipherLen);
+            send(socketFD, encryptedMessage, cipherLen, 0);
+            free(encryptedMessage);
+            break;
+        }
+    }
 }
 
 void sendReceivedMessageToARoom(char *buffer, int socketFD, int room_id) {
     for(int i = 0; i < acceptedSocketsCount; i++)
         if(acceptedSockets[i].clientSocketFD != socketFD
-           && (acceptedSockets[i].room_id == room_id))
-            send(acceptedSockets[i].clientSocketFD, buffer, strlen(buffer), 0);
+           && (acceptedSockets[i].room_id == room_id)) {
+            int cipherLen;
+            char *encryptedMessage = encryptMessage(acceptedSockets[i].pubkey, buffer, &cipherLen);
+            send(acceptedSockets[i].clientSocketFD, encryptedMessage, cipherLen, 0);
+        }
+}
+
+void createKeysRSA(char **prvkey, char **pubkey) {
+    RSA *rsa = RSA_new();
+    BIGNUM *bn = BN_new();
+
+    BN_set_word(bn, RSA_F4);
+
+    int ret = RSA_generate_key_ex(rsa, KEY_LEN, bn, NULL);
+
+    if (ret != 1) {
+        perror("Erro ao gerar a chave RSA");
+        exit(EXIT_FAILURE);
+    }
+
+    BIO *bio_prvkey_mem = BIO_new(BIO_s_mem());
+    PEM_write_bio_RSAPrivateKey(bio_prvkey_mem, rsa, NULL, NULL, 0, NULL, NULL);
+    BIO_get_mem_data(bio_prvkey_mem, prvkey);
+
+    // Salvar a chave em uma string do tipo PEM
+    BIO *bio_mem = BIO_new(BIO_s_mem());
+    PEM_write_bio_RSAPublicKey(bio_mem, rsa);
+    BIO_get_mem_data(bio_mem, pubkey);
+
+    // Liberar a memória alocada
+    RSA_free(rsa);
+    BN_free(bn);
+}
+
+char * encryptMessage(const char *pubkey, const char *buffer,
+                      int *ciphertext_len) {
+    BIO *bio_mem = BIO_new(BIO_s_mem());
+    BIO_write(bio_mem, pubkey, (int) strlen(pubkey));
+    RSA *rsa_key = PEM_read_bio_RSAPublicKey(bio_mem, NULL, NULL, NULL);
+    BIO_free(bio_mem);
+
+    int rsa_len = RSA_size(rsa_key);
+    char *ciphertext = malloc(rsa_len);
+    memset(ciphertext, 0, rsa_len);
+
+    *ciphertext_len = RSA_public_encrypt((int) strlen(buffer),
+                                         (unsigned char*)buffer,
+                                         (unsigned char*)ciphertext,
+                                         rsa_key, RSA_PKCS1_PADDING);
+
+    RSA_free(rsa_key);
+
+    return ciphertext;
+}
+
+char * decryptMessage(const char *prvkey, const char *ciphertext) {
+    BIO *bio_mem = BIO_new(BIO_s_mem());
+    BIO_write(bio_mem, prvkey, (int) strlen(prvkey));
+    RSA *rsa_key = PEM_read_bio_RSAPrivateKey(bio_mem, NULL, NULL, NULL);
+    BIO_free(bio_mem);
+
+    char *plaintext = malloc(MAX_MSG_LEN);
+    memset(plaintext, 0, MAX_MSG_LEN);
+
+    RSA_private_decrypt(RSA_size(rsa_key),
+                        (unsigned char*)ciphertext,
+                        (unsigned char*)plaintext,
+                        rsa_key, RSA_PKCS1_PADDING);
+
+    RSA_free(rsa_key);
+
+    return plaintext;
 }
