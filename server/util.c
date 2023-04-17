@@ -294,7 +294,12 @@ void changenickCommand(char *buffer, clientSocket_t *clientSocket, int socketFD)
     // Verify if the nickname is already in use
     for (int i = 0; i < acceptedSocketsCount; i++) {
         if (strcmp(acceptedSockets[i].name, buffer + 12) == 0) {
-            sprintf(buffer, "\\This nickname is already in use. Please try again.");
+            char name[MAX_NAME_LEN];
+            srand(time(NULL));
+            sprintf(name, "Anonymous%d", rand() % 1000);
+            sprintf(buffer, "\\This nickname is already in use. Your nickname is now %s."
+                            " Type \\changenick to change it.", name);
+            strcpy(clientSocket->name, name);
             sendResponseToTheClient(buffer, socketFD);
             return;
         }
@@ -324,7 +329,7 @@ void quitCommand(char *buffer, const clientSocket_t *clientSocket, int socketFD)
     decreaseClientsInARoom(room_id);
     pthread_mutex_unlock(&room_mutex[room_id]);
     printf("LOG: Unlocking mutex for room %s\n", rooms[room_id].name);
-    sprintf(buffer, "%s left the room", clientSocket->name);
+    sprintf(buffer, "%s exit the Ulide Chat", clientSocket->name);
     sendReceivedMessageToARoom(buffer, clientSocket->clientSocketFD ,room_id);
 
     // Remove the client from the acceptedSockets array
