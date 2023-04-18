@@ -16,9 +16,10 @@
 #include <openssl/pem.h>
 
 #define PORT 2000
-#define MAX_CLIENTS 50
-#define MAX_ROOMS 5
+#define MAX_CLIENTS 100
+#define MAX_ROOMS 10
 #define MAX_NAME_LEN 20
+#define MAX_PASSWORD_LEN 64
 #define MAX_BUFFER_LEN 1024
 #define MAX_MSG_LEN 500
 #define KEY_LEN 4096
@@ -29,6 +30,7 @@ typedef struct room room_t;
 struct room {
     int id; // -1 if room not "exist"
     char name[MAX_NAME_LEN];
+    char password[MAX_PASSWORD_LEN];
     int n_clients;
 };
 
