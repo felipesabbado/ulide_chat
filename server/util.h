@@ -56,7 +56,11 @@ void *handlingClientCommands(void (*arg));
 
 void commandList(int socketFD);
 
+void roomCommands(int socketFD, int roomID);
+
 void showroomsCommand(char *buffer, int socketFD);
+
+void showclientsCommand(int socketFD, int room_id);
 
 void createroomCommand(char *buffer, clientSocket_t *clientSocket, int socketFD);
 
@@ -65,8 +69,6 @@ void enterroomCommand(char *buffer, clientSocket_t *clientSocket, int socketFD);
 void leaveroomCommand(char *buffer, clientSocket_t *clientSocket, int socketFD);
 
 void changenickCommand(char *buffer, clientSocket_t *clientSocket, int socketFD);
-
-void showclientCommand(char *buffer, int socketFD);
 
 void quitCommand(char *buffer, const clientSocket_t *clientSocket, int socketFD);
 

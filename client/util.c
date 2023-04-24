@@ -149,7 +149,7 @@ void sendMessagesToServer(int socketFD) {
 }
 
 void askNickAndSendToServer(int socketFD, char *buffer) {
-    char *name;
+    char *name = malloc(MAX_NAME_LEN);
     int ciphertext_len;
     size_t nameSize = 0;
     printf("Enter your nickname: ");
@@ -160,6 +160,7 @@ void askNickAndSendToServer(int socketFD, char *buffer) {
 
     char *ciphertext = encryptMessage(server_pubkey, buffer, &ciphertext_len);
     send(socketFD, ciphertext, ciphertext_len, 0);
+    free(name);
 }
 
 void createKeysRSA(char **prvkey, char **pubkey) {

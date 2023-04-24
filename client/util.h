@@ -17,6 +17,7 @@
 #define PORT 2000
 #define MAX_MSG_LEN 1024 // MSG Limit 500
 #define KEY_LENGTH 4096
+#define MAX_NAME_LEN 20
 
 int createSocketConnection(char *ip, int port);
 
