@@ -113,14 +113,34 @@ void sendMessagesToServer(int socketFD) {
         msg[charCount - 1] = 0;
 
         sprintf(buffer, "%s", msg);
-        char *ciphermsg = encryptMessage(server_pubkey, buffer, &ciphermsg_len);
+        char *ciphermsg;
 
         if (charCount > 0) {
             if (strcmp(msg, "\\quit") == 0) {
+                ciphermsg = encryptMessage(server_pubkey, buffer, &ciphermsg_len);
                 send(socketFD, ciphermsg, ciphermsg_len, 0);
                 break;
             }
+            else if (strncmp(msg, "\\createroom ", 12) == 0) {
+                char *token = strtok(msg + 12, " ");
+                char *roomName = token;
+                token = strtok(NULL, " ");
+                if (token != NULL) {
+                    char *password = createHash(token);
+                    sprintf(buffer, "\\createroom %s %s", roomName, password);
+                }
+            }
+            else if (strncmp(msg, "\\enterroom ", 11) == 0) {
+                char *token = strtok(msg + 11, " ");
+                char *roomName = token;
+                token = strtok(NULL, " ");
+                if (token != NULL) {
+                    char *password = createHash(token);
+                    sprintf(buffer, "\\enterroom %s %s", roomName, password);
+                }
+            }
 
+            ciphermsg = encryptMessage(server_pubkey, buffer, &ciphermsg_len);
             send(socketFD, ciphermsg, ciphermsg_len, 0);
         }
     }
@@ -207,4 +227,27 @@ char * decryptMessage(const char *prvkey, const char *ciphertext) {
     free(rsa_key);
 
     return plaintext;
+}
+
+char * createHash(char *buffer) {
+    unsigned char hash[EVP_MAX_MD_SIZE];
+    unsigned int hash_len;
+    char hash_hex_str[(EVP_MAX_MD_SIZE * 2) + 1];
+
+    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+    EVP_DigestInit_ex(mdctx, EVP_sha256(), NULL);
+    EVP_DigestUpdate(mdctx, buffer, strlen(buffer));
+    EVP_DigestFinal_ex(mdctx, hash, &hash_len);
+    EVP_MD_CTX_free(mdctx);
+
+    // Converter o valor do hash para uma string em formato hexadecimal
+    for (int i = 0; i < hash_len; i++) {
+        sprintf(&hash_hex_str[i*2], "%02x", hash[i]);
+    }
+
+    char *hash_str = malloc(hash_len * 2);
+    memcpy(hash_str, hash_hex_str, (hash_len * 2));
+    hash_str[(hash_len * 2)] = 0;
+
+    return hash_str;
 }

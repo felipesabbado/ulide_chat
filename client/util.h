@@ -35,4 +35,6 @@ char * encryptMessage(const char *pubkey, const char *buffer,
 
 char * decryptMessage(const char *prvkey, const char *ciphertext);
 
+char * createHash(char *buffer);
+
 #endif //UTIL_UTIL_H
