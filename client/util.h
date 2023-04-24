@@ -25,9 +25,11 @@ void mainRoomBanner();
 
 void startListeningAndPrintMessagesOnNewThread(int *socketFD);
 
-void* listenAndPrintIncomingMessages(void *arg);
+void * listenAndPrintIncomingMessages(void *arg);
 
 void sendMessagesToServer(int socketFD);
+
+void askNickAndSendToServer(int socketFD, char *buffer);
 
 void createKeysRSA(char **prvkey, char **pubkey);
 

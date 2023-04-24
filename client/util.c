@@ -4,8 +4,6 @@ char server_pubkey[MAX_MSG_LEN];
 char client_prvkey[KEY_LENGTH];
 char client_pubkey[KEY_LENGTH];
 
-void askNickAndSendToServer(int socketFD, char *buffer);
-
 int createSocketConnection(char *ip, int port) {
     struct sockaddr_in clientAddress;
 
@@ -52,7 +50,7 @@ void startListeningAndPrintMessagesOnNewThread(int *socketFD) {
     pthread_create(&id, NULL, listenAndPrintIncomingMessages, socketFD);
 }
 
-void *listenAndPrintIncomingMessages(void *arg) {
+void * listenAndPrintIncomingMessages(void *arg) {
     char buffer[MAX_MSG_LEN];
     int *socketFD = (int *) arg;
 
@@ -159,6 +157,7 @@ void askNickAndSendToServer(int socketFD, char *buffer) {
     sprintf(buffer, "\\changenick %s", name);
 
     char *ciphertext = encryptMessage(server_pubkey, buffer, &ciphertext_len);
+
     send(socketFD, ciphertext, ciphertext_len, 0);
     free(name);
 }
@@ -186,7 +185,7 @@ void createKeysRSA(char **prvkey, char **pubkey) {
     BIO_get_mem_data(bio_mem, pubkey);
 
     // Liberar a memória alocada
-    free(rsa);
+    RSA_free(rsa);
     BN_free(bn);
 }
 
@@ -206,7 +205,7 @@ char * encryptMessage(const char *pubkey, const char *buffer,
                                          (unsigned char*)ciphertext,
                                          rsa_key, RSA_PKCS1_PADDING);
 
-    free(rsa_key);
+    RSA_free(rsa_key);
 
     return ciphertext;
 }
@@ -225,7 +224,7 @@ char * decryptMessage(const char *prvkey, const char *ciphertext) {
                         (unsigned char*)plaintext,
                         rsa_key, RSA_PKCS1_PADDING);
 
-    free(rsa_key);
+    RSA_free(rsa_key);
 
     return plaintext;
 }
