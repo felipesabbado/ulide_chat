@@ -100,7 +100,7 @@ clientSocket_t acceptIncomingConnection(int serverSocketFD) {
 void creatingAThreadForEachNewClient(void *clientSocket) {
     pthread_t id;
     pthread_create(&id, NULL, handlingClientCommands, clientSocket);
-    printf("LOG: Creating a thread for a new client\n");
+    printf("LOG: Creating thread #%lu for a new client\n", id);
 }
 
 void *handlingClientCommands(void (*arg)) {
