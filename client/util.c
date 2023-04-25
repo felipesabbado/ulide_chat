@@ -1,8 +1,8 @@
 #include "util.h"
 
-char server_pubkey[MAX_MSG_LEN];
-char client_prvkey[KEY_LENGTH];
-char client_pubkey[KEY_LENGTH];
+char server_pubkey[PUB_KEY_LENGTH];
+char client_prvkey[PRV_KEY_LENGTH];
+char client_pubkey[PUB_KEY_LENGTH];
 
 int createSocketConnection(char *ip, int port) {
     struct sockaddr_in clientAddress;
@@ -58,21 +58,24 @@ void * listenAndPrintIncomingMessages(void *arg) {
         ssize_t amountReceived = recv(*socketFD, buffer, MAX_MSG_LEN, 0);
 
         if(amountReceived > 0) {
-            if (strncmp(buffer, "-----BEGIN RSA PUBLIC KEY-----", 30) == 0) {
+            if (strncmp(buffer, "-----BEGIN PUBLIC KEY-----", 26) == 0) {
                 strcpy(server_pubkey, buffer);
             }
             else {
-                char *decryptedMsg = decryptMessage(client_prvkey, buffer);
+                char *decryptedMsg;
+                decryptMessage(client_prvkey, buffer, &decryptedMsg);
 
                 if (strncmp(decryptedMsg, "\\Error", 6) == 0
                     || strncmp(decryptedMsg, "\\Server", 7) == 0) {
                     printf("%s\n", decryptedMsg);
                     close(*socketFD);
+                    //free(decryptedMsg);
                     exit(0);
                 }
                 else {
                     buffer[amountReceived] = 0;
                     printf("%s\n", decryptedMsg);
+                    //free(decryptedMsg);
                 }
             }
         }
@@ -88,11 +91,11 @@ void * listenAndPrintIncomingMessages(void *arg) {
 
 void sendMessagesToServer(int socketFD) {
     char buffer[MAX_MSG_LEN];
-    char *prvkey = malloc(KEY_LENGTH);
-    char *pubkey = malloc(KEY_LENGTH);
+    char *prvkey = NULL;
+    char *pubkey = NULL;
 
     // Create the RSA keys and send the public key to the server
-    createKeysRSA(&prvkey, &pubkey);
+    createKeysEVP(&prvkey, &pubkey);
     strcpy(client_prvkey, prvkey);
     strcpy(client_pubkey, pubkey);
     free(prvkey);
@@ -115,8 +118,9 @@ void sendMessagesToServer(int socketFD) {
 
         if (charCount > 0) {
             if (strcmp(msg, "\\quit") == 0) {
-                ciphermsg = encryptMessage(server_pubkey, buffer, &ciphermsg_len);
+                encryptMessage(server_pubkey, buffer, &ciphermsg, &ciphermsg_len);
                 send(socketFD, ciphermsg, ciphermsg_len, 0);
+                //free(ciphermsg);
                 break;
             }
             else if (strncmp(msg, "\\createroom ", 12) == 0) {
@@ -138,8 +142,9 @@ void sendMessagesToServer(int socketFD) {
                 }
             }
 
-            ciphermsg = encryptMessage(server_pubkey, buffer, &ciphermsg_len);
+            encryptMessage(server_pubkey, buffer, &ciphermsg, &ciphermsg_len);
             send(socketFD, ciphermsg, ciphermsg_len, 0);
+            //free(ciphermsg);
         }
     }
 
@@ -148,6 +153,7 @@ void sendMessagesToServer(int socketFD) {
 
 void askNickAndSendToServer(int socketFD, char *buffer) {
     char *name = malloc(MAX_NAME_LEN);
+    char *ciphertext;
     int ciphertext_len;
     size_t nameSize = 0;
     printf("Enter your nickname: ");
@@ -156,77 +162,126 @@ void askNickAndSendToServer(int socketFD, char *buffer) {
 
     sprintf(buffer, "\\changenick %s", name);
 
-    char *ciphertext = encryptMessage(server_pubkey, buffer, &ciphertext_len);
+    encryptMessage(server_pubkey, buffer, &ciphertext, &ciphertext_len);
 
     send(socketFD, ciphertext, ciphertext_len, 0);
     free(name);
+    //free(ciphertext);
 }
 
-void createKeysRSA(char **prvkey, char **pubkey) {
-    RSA *rsa = RSA_new();
-    BIGNUM *bn = BN_new();
+void createKeysEVP(char **prvkey, char **pubkey) {
+    EVP_PKEY_CTX *ctx;
+    ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, NULL);
+    EVP_PKEY_keygen_init(ctx);
+    EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, 4096);
+    EVP_PKEY *pkey = NULL;
+    EVP_PKEY_keygen(ctx, &pkey);
+    EVP_PKEY_CTX_free(ctx);
 
-    BN_set_word(bn, RSA_F4);
+    BIO *private_key_bio = BIO_new(BIO_s_mem());
+    PEM_write_bio_PrivateKey(private_key_bio, pkey, NULL, NULL, 0, NULL, NULL);
+    size_t private_key_len = BIO_pending(private_key_bio);
+    (*prvkey) = malloc(private_key_len + 1);
+    BIO_read(private_key_bio, (*prvkey), (int)private_key_len);
+    (*prvkey)[private_key_len] = '\0';
+    BIO_free(private_key_bio);
 
-    int ret = RSA_generate_key_ex(rsa, KEY_LENGTH, bn, NULL);
+    BIO *public_key_bio = BIO_new(BIO_s_mem());
+    PEM_write_bio_PUBKEY(public_key_bio, pkey);
+    size_t public_key_len = BIO_pending(public_key_bio);
+    (*pubkey) = malloc(public_key_len + 1);
+    BIO_read(public_key_bio, (*pubkey), (int)public_key_len);
+    (*pubkey)[public_key_len] = '\0';
+    BIO_free(public_key_bio);
 
-    if (ret != 1) {
-        perror("Erro ao gerar a chave RSA");
-        exit(EXIT_FAILURE);
+    EVP_PKEY_free(pkey);
+}
+
+int encryptMessage(const char *pubkey, const char *buffer,
+                   char **ciphertext, int *ciphertext_len) {
+    BIO *bio_mem = BIO_new(BIO_s_mem());
+    BIO_puts(bio_mem, pubkey);
+    EVP_PKEY *evp_key = PEM_read_bio_PUBKEY(bio_mem, NULL, NULL, NULL);
+    BIO_free(bio_mem);
+
+    if (!evp_key) {
+        fprintf(stderr, "Erro ao carregar a chave pública.\n");
+        return -1;
     }
 
-    BIO *bio_prvkey_mem = BIO_new(BIO_s_mem());
-    PEM_write_bio_RSAPrivateKey(bio_prvkey_mem, rsa, NULL, NULL, 0, NULL, NULL);
-    BIO_get_mem_data(bio_prvkey_mem, prvkey);
+    EVP_PKEY_CTX *ctx;
+    ctx = EVP_PKEY_CTX_new(evp_key, NULL);
+    EVP_PKEY_encrypt_init(ctx);
 
-    // Salvar a chave em uma string do tipo PEM
-    BIO *bio_mem = BIO_new(BIO_s_mem());
-    PEM_write_bio_RSAPublicKey(bio_mem, rsa);
-    BIO_get_mem_data(bio_mem, pubkey);
+    size_t block_size = EVP_PKEY_size(evp_key);
 
-    // Liberar a memória alocada
-    RSA_free(rsa);
-    BN_free(bn);
+    *ciphertext = (char *)malloc(block_size);
+    if (!*ciphertext) {
+        fprintf(stderr, "Erro ao alocar memória.\n");
+        EVP_PKEY_CTX_free(ctx);
+        EVP_PKEY_free(evp_key);
+        return -1;
+    }
+
+    size_t len;
+    if (EVP_PKEY_encrypt(ctx, (unsigned char *)*ciphertext,
+                         &len, (unsigned char *)buffer,
+                         strlen(buffer)) != 1) {
+        fprintf(stderr, "Erro ao criptografar a mensagem.\n");
+        EVP_PKEY_CTX_free(ctx);
+        EVP_PKEY_free(evp_key);
+        free(*ciphertext);
+        return -1;
+    }
+
+    *ciphertext_len = (int)len;
+
+    EVP_PKEY_CTX_free(ctx);
+    EVP_PKEY_free(evp_key);
+
+    return 0;
 }
 
-char * encryptMessage(const char *pubkey, const char *buffer,
-                      int *ciphertext_len) {
+int decryptMessage(const char *prvkey, const char *ciphertext,
+                   char **plaintext) {
     BIO *bio_mem = BIO_new(BIO_s_mem());
-    BIO_write(bio_mem, pubkey, (int) strlen(pubkey));
-    RSA *rsa_key = PEM_read_bio_RSAPublicKey(bio_mem, NULL, NULL, NULL);
+    BIO_puts(bio_mem, prvkey);
+    EVP_PKEY *evp_key = PEM_read_bio_PrivateKey(bio_mem, NULL, NULL, NULL);
     BIO_free(bio_mem);
 
-    int rsa_len = RSA_size(rsa_key);
-    char *ciphertext = malloc(rsa_len);
-    memset(ciphertext, 0, rsa_len);
+    if (!evp_key) {
+        fprintf(stderr, "Erro ao carregar a chave privada.\n");
+        return -1;
+    }
 
-    *ciphertext_len = RSA_public_encrypt((int) strlen(buffer),
-                                         (unsigned char*)buffer,
-                                         (unsigned char*)ciphertext,
-                                         rsa_key, RSA_PKCS1_PADDING);
+    EVP_PKEY_CTX *ctx;
+    ctx = EVP_PKEY_CTX_new(evp_key, NULL);
+    EVP_PKEY_decrypt_init(ctx);
 
-    RSA_free(rsa_key);
+    *plaintext = (char *)malloc(512);
+    if (!*plaintext) {
+        fprintf(stderr, "Erro ao alocar memória.\n");
+        EVP_PKEY_CTX_free(ctx);
+        EVP_PKEY_free(evp_key);
+        return -1;
+    }
 
-    return ciphertext;
-}
+    size_t len;
+    if (EVP_PKEY_decrypt(ctx, (unsigned char *)*plaintext, &len,
+                         (unsigned char *)ciphertext, 512) != 1) {
+        fprintf(stderr, "Erro ao decifrar a mensagem.\n");
+        EVP_PKEY_CTX_free(ctx);
+        EVP_PKEY_free(evp_key);
+        free(*plaintext);
+        return -1;
+    }
 
-char * decryptMessage(const char *prvkey, const char *ciphertext) {
-    BIO *bio_mem = BIO_new(BIO_s_mem());
-    BIO_write(bio_mem, prvkey, (int) strlen(prvkey));
-    RSA *rsa_key = PEM_read_bio_RSAPrivateKey(bio_mem, NULL, NULL, NULL);
-    BIO_free(bio_mem);
+    (*plaintext)[len] = '\0';
 
-    char *plaintext = malloc(MAX_MSG_LEN);
-    memset(plaintext, 0, MAX_MSG_LEN);
+    EVP_PKEY_CTX_free(ctx);
+    EVP_PKEY_free(evp_key);
 
-    RSA_private_decrypt(RSA_size(rsa_key),
-                        (unsigned char*)ciphertext,
-                        (unsigned char*)plaintext,
-                        rsa_key, RSA_PKCS1_PADDING);
-
-    RSA_free(rsa_key);
-
-    return plaintext;
+    return 0;
 }
 
 char * createHash(char *buffer) {

@@ -16,7 +16,8 @@
 
 #define PORT 2000
 #define MAX_MSG_LEN 1024 // MSG Limit 500
-#define KEY_LENGTH 4096
+#define PRV_KEY_LENGTH 4096
+#define PUB_KEY_LENGTH 1024
 #define MAX_NAME_LEN 20
 
 int createSocketConnection(char *ip, int port);
@@ -31,12 +32,13 @@ void sendMessagesToServer(int socketFD);
 
 void askNickAndSendToServer(int socketFD, char *buffer);
 
-void createKeysRSA(char **prvkey, char **pubkey);
+void createKeysEVP(char **prvkey, char **pubkey);
 
-char * encryptMessage(const char *pubkey, const char *buffer,
-                      int *ciphertext_len);
+int encryptMessage(const char *pubkey, const char *buffer,
+                   char **ciphertext, int *ciphertext_len);
 
-char * decryptMessage(const char *prvkey, const char *ciphertext);
+int decryptMessage(const char *prvkey, const char *ciphertext,
+                   char **plaintext);
 
 char * createHash(char *buffer);
 
