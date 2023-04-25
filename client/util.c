@@ -43,6 +43,7 @@ void mainRoomBanner() {
            "|  \\___/ |____||___||___/ |___|       \\___||_||_||_|_|  |_|   |\n");
     printf("***************************************************************\n");
     printf("******************* Type \\commands for help *******************\n");
+    printf("********** Encrypting communications, please wait... **********\n");
 }
 
 void startListeningAndPrintMessagesOnNewThread(int *socketFD) {
@@ -102,6 +103,10 @@ void sendMessagesToServer(int socketFD) {
     free(pubkey);
     send(socketFD, client_pubkey, strlen(client_pubkey), 0);
 
+    while (strlen(server_pubkey) == 0) {
+        sleep(1);
+    }
+
     // Ask for the nickname
     askNickAndSendToServer(socketFD, buffer);
 
@@ -156,6 +161,11 @@ void askNickAndSendToServer(int socketFD, char *buffer) {
     char *ciphertext;
     int ciphertext_len;
     size_t nameSize = 0;
+
+    while (strlen(server_pubkey) == 0) {
+        usleep(500000);
+    }
+
     printf("Enter your nickname: ");
     ssize_t nameCount = getline(&name, &nameSize, stdin);
     name[nameCount - 1] = 0;
