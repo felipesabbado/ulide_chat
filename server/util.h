@@ -21,8 +21,8 @@
 #define MAX_NAME_LEN 20
 #define MAX_PASSWORD_LEN 64
 #define MAX_BUFFER_LEN 1024
-#define MAX_MSG_LEN 500
-#define KEY_LEN 4096
+#define PRV_KEY_LENGTH 4096
+#define PUB_KEY_LENGTH 1024
 
 typedef struct clientSocket clientSocket_t;
 typedef struct room room_t;
@@ -41,7 +41,7 @@ struct clientSocket {
     int room_id; // -1 if not in a room
     int error;
     int acceptedSuccessfully; // boolean
-    char pubkey[KEY_LEN];
+    char pubkey[PUB_KEY_LENGTH];
 };
 
 int createSocketConnection(char *ip, int port);
@@ -78,11 +78,11 @@ void sendResponseToTheClient(char* buffer, int socketFD);
 
 void sendReceivedMessageToARoom(char *buffer, int socketFD, int room_id);
 
-void createKeysRSA(char **prvkey, char **pubkey);
+void createKeysEVP(char **prvkey, char **pubkey);
 
-char * encryptMessage(const char *pubkey, const char *buffer,
-                      int *ciphertext_len);
+int encryptMessage(const char *pubkey, const char *buffer,
+                   char **ciphertext, int *ciphertext_len);
 
-char * decryptMessage(const char *prvkey, const char *ciphertext);
+int decryptMessage(const char *prvkey, const char *ciphertext, char **plaintext);
 
 #endif //UTIL_UTIL_H
