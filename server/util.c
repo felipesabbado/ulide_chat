@@ -195,7 +195,7 @@ void roomCommands(int socketFD, int roomID) {
     }
     char commands[] = "In a room, type the commands below to:\n"
                       "\\showclients - Show the clients in the current room\n"
-                      "\\leaveroom - Leave the current room\n";
+                      "\\leaveroom - Leave the current room";
     sendResponseToTheClient(commands, socketFD);
 }
 

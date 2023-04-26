@@ -42,7 +42,6 @@ void mainRoomBanner() {
            "| | |_| || |__  | | | |) || _|       | (__ | __ || - |  | |   |\n"
            "|  \\___/ |____||___||___/ |___|       \\___||_||_||_|_|  |_|   |\n");
     printf("***************************************************************\n");
-    printf("******************* Type \\commands for help *******************\n");
     printf("********** Encrypting communications, please wait... **********\n");
 }
 
@@ -176,6 +175,7 @@ void askNickAndSendToServer(int socketFD, char *buffer) {
 
     send(socketFD, ciphertext, ciphertext_len, 0);
     free(name);
+    printf("******************* Type \\commands for help *******************\n");
     //free(ciphertext);
 }
 
