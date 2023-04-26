@@ -39,6 +39,7 @@ int createSocketConnection(char *ip, int port) {
         exit(EXIT_FAILURE);
     }
 
+    // Listening for incoming connections
     listen(serverSocketFD, MAX_CLIENTS);
 
     return serverSocketFD;
@@ -169,8 +170,6 @@ void *handlingClientCommands(void (*arg)) {
             break;
     }
 
-    free(server_prvkey);
-    free(server_pubkey);
     close(socketFD);
 
     return NULL;
@@ -196,7 +195,7 @@ void roomCommands(int socketFD, int roomID) {
     }
     char commands[] = "In a room, type the commands below to:\n"
                       "\\showclients - Show the clients in the current room\n"
-                      "\\leaveroom - Leave the current room\n";
+                      "\\leaveroom - Leave the current room";
     sendResponseToTheClient(commands, socketFD);
 }
 
